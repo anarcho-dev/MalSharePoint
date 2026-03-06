@@ -72,13 +72,21 @@ def create_listener():
     if not bind_port or not isinstance(bind_port, int) or bind_port < 1 or bind_port > 65535:
         return jsonify({"error": "Valid bind_port (1-65535) required"}), 400
 
+    listener_type = str(data.get('listener_type', 'http'))[:32]
+    tls_cert_path = data.get('tls_cert_path') or None
+    tls_key_path = data.get('tls_key_path') or None
+
+    if listener_type == 'https':
+        if not tls_cert_path or not tls_key_path:
+            return jsonify({"error": "HTTPS requires tls_cert_path and tls_key_path"}), 400
+
     listener = Listener(
         name=name,
-        listener_type=str(data.get('listener_type', 'http'))[:32],
+        listener_type=listener_type,
         bind_address=str(data.get('bind_address', '0.0.0.0'))[:45],
         bind_port=bind_port,
-        tls_cert_path=data.get('tls_cert_path'),
-        tls_key_path=data.get('tls_key_path'),
+        tls_cert_path=tls_cert_path,
+        tls_key_path=tls_key_path,
         profile_id=data.get('profile_id'),
         created_by=get_jwt_identity(),
         status='stopped',
@@ -124,6 +132,11 @@ def update_listener(lid):
             listener.bind_port = port
     if 'profile_id' in data:
         listener.profile_id = data['profile_id']
+
+    # Validate TLS paths for HTTPS after applying all field updates
+    if listener.listener_type == 'https':
+        if not listener.tls_cert_path or not listener.tls_key_path:
+            return jsonify({"error": "HTTPS requires tls_cert_path and tls_key_path"}), 400
 
     db.session.commit()
     return jsonify(listener.to_dict()), 200
