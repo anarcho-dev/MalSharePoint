@@ -1,9 +1,13 @@
 import os
+import atexit
+import logging
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 from sqlalchemy import text
+
 from config import config
 from models import db, User, Role
 from routes.auth import auth_bp
@@ -11,7 +15,16 @@ from routes.files import files_bp
 from routes.admin import admin_bp
 from routes.snippets import snippets_bp
 from routes.exploits import exploits_bp
+from routes.listeners import listeners_bp
+from routes.c2 import c2_bp
+from routes.agents import agents_bp
 from listener import listener_bp
+from listeners import ListenerManager
+
+logger = logging.getLogger(__name__)
+
+# Singleton listener manager shared across the app
+listener_manager = ListenerManager()
 
 
 def create_app(config_name=None):
@@ -30,13 +43,19 @@ def create_app(config_name=None):
     Migrate(app, db)
     JWTManager(app)
 
+    # Listener Manager
+    listener_manager.init_app(app)
+
     # Blueprints
     app.register_blueprint(auth_bp)
     app.register_blueprint(files_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(snippets_bp)
     app.register_blueprint(exploits_bp)
-    app.register_blueprint(listener_bp)
+    app.register_blueprint(listener_bp)      # legacy /api/l/* endpoints
+    app.register_blueprint(listeners_bp)     # new /api/listeners/* CRUD + lifecycle
+    app.register_blueprint(c2_bp)            # /api/c2/* agent-facing C2
+    app.register_blueprint(agents_bp)        # /api/admin/agents/* management
 
     @app.route("/api/health", methods=["GET"])
     def health_check():
@@ -48,11 +67,6 @@ def create_app(config_name=None):
         overall = "healthy" if db_status == "healthy" else "degraded"
         return jsonify({"status": overall, "database": db_status}), 200
 
-    @app.route("/api/c2/checkin", methods=["GET", "POST"])
-    def honeypot_c2():
-        # Log the suspicious attempt with source IP
-        app.logger.warning(f"Suspicious C2 checkin attempt from {request.remote_addr}")
-        return jsonify({"status": "error", "message": "Invalid endpoint"}), 404
 
     @app.errorhandler(404)
     def not_found(e):
@@ -91,6 +105,38 @@ def create_app(config_name=None):
             db.session.add(seed)
             db.session.commit()
             app.logger.info("Seeded default admin user 'admin'")
+
+        # Seed default listener profiles
+        from models import ListenerProfile
+        if ListenerProfile.query.count() == 0:
+            for pdata in [
+                {
+                    'name': 'Apache Default',
+                    'server_header': 'Apache/2.4.54 (Ubuntu)',
+                    'default_response_body': '<html><body><h1>It works!</h1></body></html>',
+                },
+                {
+                    'name': 'Nginx',
+                    'server_header': 'nginx/1.24.0',
+                    'default_response_body': '<html><head><title>Welcome to nginx!</title></head><body><h1>Welcome to nginx!</h1></body></html>',
+                },
+                {
+                    'name': 'IIS 10',
+                    'server_header': 'Microsoft-IIS/10.0',
+                    'default_response_body': '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html><head><title>IIS Windows Server</title></head><body><img src="iisstart.png" alt="IIS" /></body></html>',
+                },
+            ]:
+                p = ListenerProfile(name=pdata['name'], server_header=pdata['server_header'],
+                                    default_response_body=pdata['default_response_body'])
+                db.session.add(p)
+            db.session.commit()
+            app.logger.info("Seeded default listener profiles")
+
+        # Auto-start listeners that were running before shutdown
+        listener_manager.auto_start()
+
+    # Graceful shutdown
+    atexit.register(listener_manager.shutdown_all)
 
     return app
 
