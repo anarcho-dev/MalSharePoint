@@ -10,11 +10,13 @@ from models import db, User, AuditLog, Role
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
 
-def _log(user_id, action, target=None, details=None, ip=None):
+def _log(user_id, action, target=None, details=None, ip=None, commit=True):
+    """Append an AuditLog row. Set commit=False to batch with a parent commit."""
     entry = AuditLog(user_id=user_id, action=action, target=target,
                      details=details, ip_address=ip)
     db.session.add(entry)
-    db.session.commit()
+    if commit:
+        db.session.commit()
 
 
 @auth_bp.route('/login', methods=['POST'])
@@ -34,6 +36,8 @@ def login():
         return jsonify({"error": "Account is disabled"}), 403
 
     user.last_login = datetime.utcnow()
+    # Batch: last_login update + audit log in one commit
+    _log(user.id, 'login', ip=request.remote_addr, commit=False)
     db.session.commit()
 
     access_token = create_access_token(
@@ -41,8 +45,6 @@ def login():
         additional_claims={"role": user.role},
     )
     refresh_token = create_refresh_token(identity=str(user.id))
-
-    _log(user.id, 'login', ip=request.remote_addr)
     return jsonify({
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -96,7 +98,7 @@ def change_password():
 
     user.set_password(new_password)
     user.must_change_password = False
+    # Batch: password update + audit log in one commit
+    _log(user.id, 'change_password', ip=request.remote_addr, commit=False)
     db.session.commit()
-
-    _log(user.id, 'change_password', ip=request.remote_addr)
     return jsonify({"message": "Password changed successfully", "user": user.to_dict()}), 200

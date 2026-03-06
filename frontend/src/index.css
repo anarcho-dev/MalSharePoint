@@ -5,53 +5,130 @@
 @layer base {
   body {
     @apply bg-slate-950 text-slate-100 font-sans antialiased;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(220, 38, 38, 0.06), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(30, 41, 59, 0.4), transparent);
   }
+
   ::-webkit-scrollbar {
     @apply w-1.5 h-1.5;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-slate-900;
+    @apply bg-transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-slate-600 rounded-full;
+    @apply bg-slate-700 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-500;
+  }
+
+  * {
+    @apply transition-[border-color,box-shadow] duration-150;
   }
 }
 
 @layer components {
+  /* ── Buttons ─────────────────── */
   .btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700
-           text-white text-sm font-medium rounded-lg transition-colors
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center gap-2 px-4 py-2
+           bg-red-600 hover:bg-red-500 active:bg-red-700
+           text-white text-sm font-semibold rounded-lg
+           shadow-[0_0_0_0_rgba(220,38,38,0)] hover:shadow-[0_0_16px_0_rgba(220,38,38,0.35)]
+           transition-all duration-200
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none;
   }
   .btn-secondary {
-    @apply inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700
-           text-slate-100 text-sm font-medium rounded-lg transition-colors border border-slate-700
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center gap-2 px-4 py-2
+           bg-slate-800/80 hover:bg-slate-700/80
+           text-slate-200 hover:text-white text-sm font-medium rounded-lg
+           border border-slate-700 hover:border-slate-500
+           transition-all duration-200
+           disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-danger {
-    @apply inline-flex items-center gap-2 px-4 py-2 border border-red-600/50
-           hover:bg-red-600/10 text-red-400 text-sm font-medium rounded-lg transition-colors
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center gap-2 px-4 py-2
+           border border-red-600/40 hover:border-red-500/70
+           hover:bg-red-600/10 text-red-400 hover:text-red-300
+           text-sm font-medium rounded-lg
+           transition-all duration-200
+           disabled:opacity-40 disabled:cursor-not-allowed;
   }
+
+  /* ── Cards ────────────────────── */
   .card {
-    @apply bg-slate-900 border border-slate-800 rounded-xl;
+    @apply bg-slate-900/80 border border-slate-800/80 rounded-xl
+           backdrop-blur-sm;
   }
+  .card-hover {
+    @apply card hover:border-slate-700 hover:shadow-[0_0_20px_-4px_rgba(0,0,0,0.6)]
+           transition-all duration-200 cursor-pointer;
+  }
+
+  /* ── Form controls ───────────── */
   .input {
-    @apply w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg
-           text-slate-100 placeholder-slate-500 text-sm
-           focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:border-red-500
-           transition-colors;
+    @apply w-full px-3 py-2
+           bg-slate-800/70 border border-slate-700/80 rounded-lg
+           text-slate-100 placeholder-slate-600 text-sm
+           focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500/70
+           transition-all duration-200;
   }
   .label {
-    @apply block text-sm font-medium text-slate-300 mb-1.5;
+    @apply block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider;
   }
+
+  /* ── Badges ───────────────────── */
   .badge {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium;
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold;
   }
+
+  /* ── Tables ───────────────────── */
   .table-th {
-    @apply px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider;
+    @apply px-4 py-3 text-left text-[10px] font-bold text-slate-600
+           uppercase tracking-widest bg-slate-950/40;
   }
   .table-td {
     @apply px-4 py-3 text-sm;
   }
+
+  /* ── Page wrapper ─────────────── */
+  .page-header h1 {
+    @apply text-2xl font-bold text-slate-100 tracking-tight;
+  }
+  .page-header p {
+    @apply text-sm text-slate-500 mt-1;
+  }
+
+  /* ── Stat card glow ring on hover ─ */
+  .stat-card {
+    @apply card p-5 hover:border-slate-700 hover:-translate-y-0.5
+           transition-all duration-200;
+  }
+
+  /* ── Glow separator ──────────── */
+  .glow-line {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(220,38,38,0.4), transparent);
+  }
 }
+
+/* ── Custom animations ────────────────────────────── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #1e293b 25%, #273548 50%, #1e293b 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite;
+  @apply rounded;
+}
+

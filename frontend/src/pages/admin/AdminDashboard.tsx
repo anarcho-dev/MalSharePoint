@@ -23,19 +23,19 @@ interface StatCardProps {
 
 function StatCard({ icon: Icon, label, value, colorClass, link }: StatCardProps) {
   const content = (
-    <div className="card p-5 hover:border-slate-700 transition-colors">
+    <div className="stat-card hover:border-slate-700 group">
       <div
         className={clsx(
-          'w-10 h-10 rounded-lg border flex items-center justify-center mb-4',
+          'w-10 h-10 rounded-xl border flex items-center justify-center mb-4',
           colorClass
         )}
       >
         <Icon size={18} />
       </div>
-      <p className="text-2xl font-bold text-slate-100 tabular-nums">
+      <p className="text-2xl font-black text-slate-100 tabular-nums tracking-tight">
         {value.toLocaleString()}
       </p>
-      <p className="text-sm text-slate-500 mt-1">{label}</p>
+      <p className="text-xs font-semibold text-slate-500 mt-1.5 uppercase tracking-wider">{label}</p>
     </div>
   );
 

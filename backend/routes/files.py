@@ -22,11 +22,23 @@ def _sha256(filepath):
     return h.hexdigest()
 
 
-def _log(user_id, action, target=None, details=None, ip=None):
+def _log(user_id, action, target=None, details=None, ip=None, commit=True):
+    """Append an AuditLog row. Set commit=False to batch with a parent commit."""
     entry = AuditLog(user_id=user_id, action=action, target=target,
                      details=details, ip_address=ip)
     db.session.add(entry)
-    db.session.commit()
+    if commit:
+        db.session.commit()
+
+
+def _can_read(db_file, user_id, role):
+    """Return True if the caller is allowed to read/download this file."""
+    return role == 'admin' or db_file.uploaded_by == user_id or db_file.is_public
+
+
+def _can_write(db_file, user_id, role):
+    """Return True if the caller is allowed to modify/delete this file."""
+    return role == 'admin' or db_file.uploaded_by == user_id
 
 
 @files_bp.route('', methods=['GET'])
@@ -104,10 +116,10 @@ def upload_file():
         uploaded_by=user_id,
     )
     db.session.add(db_file)
-    db.session.commit()
-
+    # Batch: new file + audit log in one commit
     _log(user_id, 'upload', target=original_filename,
-         details=f"SHA256: {file_hash}", ip=request.remote_addr)
+         details=f"SHA256: {file_hash}", ip=request.remote_addr, commit=False)
+    db.session.commit()
     return jsonify({"message": "File uploaded successfully", "file": db_file.to_dict()}), 201
 
 
@@ -118,7 +130,7 @@ def get_file_info(file_id):
     role = get_jwt().get('role')
 
     db_file = db.get_or_404(File, file_id)
-    if role != 'admin' and db_file.uploaded_by != user_id and not db_file.is_public:
+    if not _can_read(db_file, user_id, role):
         return jsonify({"error": "Access denied"}), 403
 
     return jsonify(db_file.to_dict()), 200
@@ -131,13 +143,15 @@ def download_file(file_id):
     role = get_jwt().get('role')
 
     db_file = db.get_or_404(File, file_id)
-    if role != 'admin' and db_file.uploaded_by != user_id and not db_file.is_public:
+    if not _can_read(db_file, user_id, role):
         return jsonify({"error": "Access denied"}), 403
 
     db_file.download_count += 1
+    # Batch: increment + audit log in one commit
+    _log(user_id, 'download', target=db_file.original_filename,
+         ip=request.remote_addr, commit=False)
     db.session.commit()
 
-    _log(user_id, 'download', target=db_file.original_filename, ip=request.remote_addr)
     return send_from_directory(
         current_app.config['UPLOAD_FOLDER'],
         db_file.filename,
@@ -153,7 +167,7 @@ def update_file(file_id):
     role = get_jwt().get('role')
 
     db_file = db.get_or_404(File, file_id)
-    if role != 'admin' and db_file.uploaded_by != user_id:
+    if not _can_write(db_file, user_id, role):
         return jsonify({"error": "Access denied"}), 403
 
     data = request.get_json()
@@ -178,14 +192,16 @@ def delete_file(file_id):
     role = get_jwt().get('role')
 
     db_file = db.get_or_404(File, file_id)
-    if role != 'admin' and db_file.uploaded_by != user_id:
+    if not _can_write(db_file, user_id, role):
         return jsonify({"error": "Access denied"}), 403
 
     file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], db_file.filename)
     if os.path.exists(file_path):
         os.remove(file_path)
 
-    _log(user_id, 'delete', target=db_file.original_filename, ip=request.remote_addr)
+    # Batch: delete + audit log in one commit
+    _log(user_id, 'delete', target=db_file.original_filename,
+         ip=request.remote_addr, commit=False)
     db.session.delete(db_file)
     db.session.commit()
     return jsonify({"message": "File deleted successfully"}), 200
@@ -258,7 +274,7 @@ def delivery_commands(file_id):
     role = get_jwt().get('role')
 
     db_file = db.get_or_404(File, file_id)
-    if role != 'admin' and db_file.uploaded_by != user_id and not db_file.is_public:
+    if not _can_read(db_file, user_id, role):
         return jsonify({"error": "Access denied"}), 403
 
     # Determine the base URL from the request

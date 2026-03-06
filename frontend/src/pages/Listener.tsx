@@ -75,7 +75,7 @@ export default function Listener() {
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-  const fetchEvents = useCallback(async (p = page) => {
+  const fetchEvents = useCallback(async (p: number) => {
     setLoading(true);
     setError(null);
     try {
@@ -92,14 +92,14 @@ export default function Listener() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, []); // no external deps — p is always passed explicitly
 
   // Initial load + auto-refresh every 10 s
   useEffect(() => {
     fetchEvents(1);
     const id = setInterval(() => fetchEvents(1), 10_000);
     return () => clearInterval(id);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchEvents]);
 
   return (
     <div className="space-y-8">

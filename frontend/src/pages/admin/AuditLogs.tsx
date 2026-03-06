@@ -3,33 +3,24 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Loader2, ScrollText } from 'lucide-react';
 import clsx from 'clsx';
 import { adminApi } from '../../api/admin';
+import { formatTimestamp } from '../../utils/format';
 import type { AuditLog } from '../../types';
 
 const ACTION_COLORS: Record<string, string> = {
-  login: 'bg-emerald-500/10 text-emerald-400',
-  register: 'bg-blue-500/10 text-blue-400',
-  logout: 'bg-slate-700 text-slate-400',
-  upload: 'bg-violet-500/10 text-violet-400',
-  download: 'bg-cyan-500/10 text-cyan-400',
-  delete: 'bg-red-500/10 text-red-400',
-  login_failed: 'bg-orange-500/10 text-orange-400',
-  change_password: 'bg-yellow-500/10 text-yellow-400',
-  payload_checkin: 'bg-rose-500/10 text-rose-400',
-  data_exfil: 'bg-pink-500/10 text-pink-400',
+  login: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+  register: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+  logout: 'bg-slate-700/50 text-slate-400 border border-slate-600/30',
+  upload: 'bg-violet-500/10 text-violet-400 border border-violet-500/20',
+  download: 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20',
+  delete: 'bg-red-500/10 text-red-400 border border-red-500/20',
+  login_failed: 'bg-orange-500/10 text-orange-400 border border-orange-500/20',
+  change_password: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20',
+  payload_checkin: 'bg-rose-500/10 text-rose-400 border border-rose-500/20',
+  data_exfil: 'bg-pink-500/10 text-pink-400 border border-pink-500/20',
 };
 
 function actionColor(action: string): string {
-  return ACTION_COLORS[action] ?? 'bg-slate-800 text-slate-400';
-}
-
-function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+  return ACTION_COLORS[action] ?? 'bg-slate-800 text-slate-400 border border-slate-700/30';
 }
 
 export default function AuditLogs() {

@@ -10,6 +10,7 @@ import {
   KeyRound,
   Zap,
   Radio,
+  AlertTriangle,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
@@ -41,15 +42,28 @@ function SideNavLink({ to, label, Icon, exact = false }: NavItem & { exact?: boo
       end={exact}
       className={({ isActive }) =>
         clsx(
-          'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all',
+          'group relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200',
           isActive
-            ? 'bg-red-600/15 text-red-400 border border-red-600/25'
-            : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/70'
+            ? 'bg-gradient-to-r from-red-600/20 to-red-600/5 text-red-400 shadow-[inset_0_0_0_1px_rgba(220,38,38,0.25)]'
+            : 'text-slate-500 hover:text-slate-200 hover:bg-slate-800/60'
         )
       }
     >
-      <Icon size={15} />
-      {label}
+      {({ isActive }) => (
+        <>
+          {isActive && (
+            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-red-500 rounded-r-full shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
+          )}
+          <Icon
+            size={15}
+            className={clsx(
+              'transition-colors duration-200',
+              isActive ? 'text-red-400' : 'text-slate-600 group-hover:text-slate-300'
+            )}
+          />
+          {label}
+        </>
+      )}
     </NavLink>
   );
 }
@@ -63,24 +77,36 @@ export default function Layout() {
     navigate('/login', { replace: true });
   };
 
+  const roleBadge: Record<string, string> = {
+    admin: 'text-red-400',
+    user: 'text-blue-400',
+    readonly: 'text-slate-400',
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-slate-950">
       {/* Sidebar */}
-      <aside className="w-56 flex-shrink-0 flex flex-col bg-slate-900 border-r border-slate-800">
-        {/* Brand */}
-        <div className="flex items-center gap-2.5 px-4 py-4 border-b border-slate-800">
-          <div className="w-7 h-7 rounded-lg bg-red-600/20 border border-red-600/40 flex items-center justify-center">
-            <Shield size={14} className="text-red-400" />
+      <aside className="w-58 flex-shrink-0 flex flex-col bg-slate-900/95 border-r border-slate-800/80 backdrop-blur-sm"
+             style={{ width: '224px' }}>
+        {/* Brand header with glow */}
+        <div className="relative flex items-center gap-3 px-4 py-4 border-b border-slate-800/80">
+          <div className="relative w-8 h-8 rounded-xl bg-gradient-to-br from-red-600/30 to-red-800/20 border border-red-600/40 flex items-center justify-center shadow-[0_0_12px_rgba(220,38,38,0.2)]">
+            <Shield size={15} className="text-red-400" />
           </div>
-          <span className="font-semibold text-slate-100 tracking-tight text-sm">
-            MalSharePoint
-          </span>
+          <div className="flex-1 min-w-0">
+            <span className="font-bold text-slate-100 tracking-tight text-sm block">
+              MalSharePoint
+            </span>
+            <span className="text-[9px] font-semibold text-slate-600 uppercase tracking-widest">
+              Payload Platform
+            </span>
+          </div>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-          <p className="px-3 pt-1 pb-2 text-[10px] font-semibold text-slate-600 uppercase tracking-widest">
-            Main
+          <p className="px-3 pt-2 pb-2 text-[9px] font-bold text-slate-700 uppercase tracking-[0.12em]">
+            Navigation
           </p>
           {mainNav.map((item) => (
             <SideNavLink key={item.to} {...item} />
@@ -88,7 +114,8 @@ export default function Layout() {
 
           {isAdmin() && (
             <>
-              <p className="px-3 pt-5 pb-2 text-[10px] font-semibold text-slate-600 uppercase tracking-widest">
+              <div className="my-3 glow-line" />
+              <p className="px-3 pb-2 text-[9px] font-bold text-slate-700 uppercase tracking-[0.12em]">
                 Administration
               </p>
               {adminNav.map((item) => (
@@ -98,21 +125,25 @@ export default function Layout() {
           )}
         </nav>
 
-        {/* User section */}
-        <div className="border-t border-slate-800 p-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-red-600/20 border border-red-600/30 flex items-center justify-center flex-shrink-0">
-              <span className="text-[11px] font-bold text-red-400 uppercase">
+        {/* User footer */}
+        <div className="border-t border-slate-800/80 p-3">
+          <div className="flex items-center gap-2.5 px-1">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-600/25 to-red-900/20 border border-red-600/30 flex items-center justify-center flex-shrink-0 shadow-[0_0_8px_rgba(220,38,38,0.15)]">
+              <span className="text-[11px] font-black text-red-400 uppercase">
                 {user?.username?.[0] ?? '?'}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-slate-100 truncate">{user?.username}</p>
-              <p className="text-[10px] text-slate-500 capitalize">{user?.role}</p>
+              <p className="text-xs font-semibold text-slate-200 truncate leading-tight">
+                {user?.username}
+              </p>
+              <p className={clsx('text-[10px] font-medium capitalize leading-tight', roleBadge[user?.role ?? ''] ?? 'text-slate-500')}>
+                {user?.role}
+              </p>
             </div>
             <button
               onClick={handleLogout}
-              className="p-1.5 rounded text-slate-600 hover:text-red-400 hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-400/10 transition-all duration-200"
               title="Sign out"
             >
               <LogOut size={13} />
@@ -121,21 +152,21 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
+      {/* Main content area */}
+      <main className="flex-1 overflow-y-auto min-w-0">
         {user?.must_change_password && (
-          <div className="mx-8 mt-6 px-4 py-3 rounded-xl bg-yellow-500/5 border border-yellow-500/20 flex items-center gap-3">
-            <KeyRound size={15} className="text-yellow-400 flex-shrink-0" />
-            <p className="text-sm text-yellow-300/80 flex-1">
+          <div className="mx-6 mt-5 px-4 py-3 rounded-xl bg-amber-500/8 border border-amber-500/25 flex items-center gap-3">
+            <AlertTriangle size={15} className="text-amber-400 flex-shrink-0" />
+            <p className="text-sm text-amber-300/90 flex-1">
               You are using the default password. Please{' '}
-              <Link to="/change-password" className="underline hover:text-yellow-200">
-                change it
+              <Link to="/change-password" className="font-semibold underline underline-offset-2 hover:text-amber-200 transition-colors">
+                change it now
               </Link>{' '}
-              for security.
+              to secure your account.
             </p>
           </div>
         )}
-        <div className="p-8 max-w-6xl">
+        <div className="p-7 max-w-6xl">
           <Outlet />
         </div>
       </main>

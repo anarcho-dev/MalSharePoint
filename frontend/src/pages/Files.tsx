@@ -15,22 +15,8 @@ import {
 import clsx from 'clsx';
 import { filesApi } from '../api/files';
 import { useAuthStore } from '../store/authStore';
+import { formatBytes, formatDate } from '../utils/format';
 import type { FileItem } from '../types';
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
 
 export default function Files() {
   const { user, isAdmin } = useAuthStore();
@@ -80,19 +66,19 @@ export default function Files() {
       <div className="card overflow-hidden">
         {isLoading ? (
           <div className="flex justify-center items-center py-20">
-            <Loader2 className="animate-spin text-slate-600" size={22} />
+            <Loader2 className="animate-spin text-slate-700" size={22} />
           </div>
         ) : files.length === 0 ? (
           <div className="py-20 text-center">
-            <FileText size={32} className="text-slate-800 mx-auto mb-3" />
-            <p className="text-slate-500 text-sm">No files found</p>
+            <FileText size={40} className="text-slate-800 mx-auto mb-3" />
+            <p className="text-slate-600 text-sm font-medium">No files found</p>
           </div>
         ) : (
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-800">
+                  <tr className="border-b border-slate-800/80">
                     <th className="table-th">File</th>
                     <th className="table-th">SHA-256</th>
                     <th className="table-th">Size</th>
@@ -101,7 +87,7 @@ export default function Files() {
                     <th className="table-th text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/50">
+                <tbody className="divide-y divide-slate-800/40">
                   {files.map((file) => (
                     <FileRow
                       key={file.id}
@@ -235,12 +221,7 @@ function FileRow({ file, currentUserId, isAdmin, copiedId, onCopy, onDelete }: F
       </td>
 
       <td className="table-td">
-        <div
-          className={clsx(
-            'flex items-center gap-1 justify-end',
-            canDelete ? 'justify-end' : 'justify-end'
-          )}
-        >
+        <div className="flex items-center gap-1 justify-end">
           <button
             onClick={handleDownload}
             className="p-1.5 rounded text-slate-500 hover:text-emerald-400 hover:bg-emerald-400/10 transition-colors"
