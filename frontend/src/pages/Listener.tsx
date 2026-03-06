@@ -64,7 +64,7 @@ function ListenersTab() {
   const [profiles, setProfiles] = useState<ListenerProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: '', bind_port: 8080, listener_type: 'http', bind_address: '0.0.0.0', profile_id: null as number | null });
+  const [form, setForm] = useState({ name: '', bind_port: 8080, listener_type: 'http', bind_address: '0.0.0.0', profile_id: null as number | null, tls_cert_path: '', tls_key_path: '' });
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -78,8 +78,12 @@ function ListenersTab() {
 
   const handleCreate = async () => {
     try {
-      await createListener({ ...form, profile_id: form.profile_id || undefined });
-      setShowCreate(false); setForm({ name: '', bind_port: 8080, listener_type: 'http', bind_address: '0.0.0.0', profile_id: null }); refresh();
+      const { tls_cert_path, tls_key_path, ...rest } = form;
+      const payload = form.listener_type === 'https'
+        ? { ...rest, profile_id: form.profile_id || undefined, tls_cert_path, tls_key_path }
+        : { ...rest, profile_id: form.profile_id || undefined };
+      await createListener(payload);
+      setShowCreate(false); setForm({ name: '', bind_port: 8080, listener_type: 'http', bind_address: '0.0.0.0', profile_id: null, tls_cert_path: '', tls_key_path: '' }); refresh();
     } catch (e: any) { setError(e.response?.data?.error || 'Erstellen fehlgeschlagen'); }
   };
 
@@ -110,6 +114,12 @@ function ListenersTab() {
             </select>
           </div>
           <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 w-full" placeholder="Bind Address (0.0.0.0)" value={form.bind_address} onChange={e => setForm({ ...form, bind_address: e.target.value })} />
+          {form.listener_type === 'https' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input aria-label="TLS Cert Path" className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" placeholder="TLS Cert Path (required)" value={form.tls_cert_path} onChange={e => setForm({ ...form, tls_cert_path: e.target.value })} />
+              <input aria-label="TLS Key Path" className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" placeholder="TLS Key Path (required)" value={form.tls_key_path} onChange={e => setForm({ ...form, tls_key_path: e.target.value })} />
+            </div>
+          )}
           <div className="flex justify-end gap-2">
             <button onClick={() => setShowCreate(false)} className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm">Abbrechen</button>
             <button onClick={handleCreate} className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium">Erstellen</button>

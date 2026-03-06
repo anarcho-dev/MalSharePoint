@@ -104,6 +104,7 @@ export const getListeners = () => api.get<ListenerItem[]>('/listeners');
 export const createListener = (data: {
   name: string; listener_type?: string; bind_address?: string;
   bind_port: number; profile_id?: number | null;
+  tls_cert_path?: string; tls_key_path?: string;
 }) => api.post<ListenerItem>('/listeners', data);
 
 export const updateListener = (id: number, data: Partial<ListenerItem>) =>
