@@ -9,7 +9,7 @@ import Upload from './pages/Upload';
 import PayloadDelivery from './pages/PayloadDelivery';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
-import AuditLogs from './pages/admin/AuditLog';
+import AuditLogs from './pages/admin/AuditLogs';
 
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
