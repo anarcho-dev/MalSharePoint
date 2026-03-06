@@ -1,5 +1,8 @@
 # MalSharePoint
 
+![MalSharePoint Banner](banner.png)
+
+## Overview
 MalSharepoint is a modern webserver, optimized for sharing exploit codes, payloads or malware with an advanced Level of obfuscation and stealth. The application simplifies the delivery process in pentests or red team engagements, also being a useful tool for Threat Simulation or Network Security Audits.
 
 ## Features

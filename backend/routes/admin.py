@@ -13,7 +13,10 @@ def admin_required(fn):
     @wraps(fn)
     @jwt_required()
     def wrapper(*args, **kwargs):
-        if get_jwt().get('role') != Role.ADMIN:
+        if get_jwt().get('role') != Role.ADMIN:        cd /media/jensbecker/SSD4TB/DEV/Projects/MalSharePoint
+        source venv/bin/activate
+        python backend/app.py &
+        cd frontend && npm run dev
             return jsonify({"error": "Admin access required"}), 403
         return fn(*args, **kwargs)
     return wrapper

@@ -14,6 +14,8 @@ const ACTION_COLORS: Record<string, string> = {
   delete: 'bg-red-500/10 text-red-400',
   login_failed: 'bg-orange-500/10 text-orange-400',
   change_password: 'bg-yellow-500/10 text-yellow-400',
+  payload_checkin: 'bg-rose-500/10 text-rose-400',
+  data_exfil: 'bg-pink-500/10 text-pink-400',
 };
 
 function actionColor(action: string): string {

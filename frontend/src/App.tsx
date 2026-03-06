@@ -10,6 +10,7 @@ import PayloadDelivery from './pages/PayloadDelivery';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
 import AuditLogs from './pages/admin/AuditLogs';
+import Listener from './pages/Listener';
 
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
       { path: '/files', element: <Files /> },
       { path: '/upload', element: <Upload /> },
       { path: '/payload-delivery', element: <PayloadDelivery /> },
+      { path: '/listener', element: <Listener /> },
       {
         path: '/admin',
         element: (

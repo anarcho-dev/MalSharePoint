@@ -9,6 +9,7 @@ import {
   Shield,
   KeyRound,
   Zap,
+  Radio,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
@@ -24,6 +25,7 @@ const mainNav: NavItem[] = [
   { to: '/files', label: 'Files', Icon: FolderOpen },
   { to: '/upload', label: 'Upload', Icon: UploadCloud },
   { to: '/payload-delivery', label: 'Payload Delivery', Icon: Zap },
+  { to: '/listener', label: 'Listener', Icon: Radio },
 ];
 
 const adminNav: NavItem[] = [

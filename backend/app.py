@@ -10,6 +10,7 @@ from routes.auth import auth_bp
 from routes.files import files_bp
 from routes.admin import admin_bp
 from routes.snippets import snippets_bp
+from listener import listener_bp
 
 
 def create_app(config_name=None):
@@ -33,6 +34,7 @@ def create_app(config_name=None):
     app.register_blueprint(files_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(snippets_bp)
+    app.register_blueprint(listener_bp)
 
     @app.route('/api/health', methods=['GET'])
     def health_check():
