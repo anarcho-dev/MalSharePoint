@@ -11,6 +11,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
 import AuditLogs from './pages/admin/AuditLogs';
 import Listener from './pages/Listener';
+import ExploitManager from './pages/ExploitManager';
 
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
@@ -35,6 +36,14 @@ const router = createBrowserRouter([
       { path: '/upload', element: <Upload /> },
       { path: '/payload-delivery', element: <PayloadDelivery /> },
       { path: '/listener', element: <Listener /> },
+      {
+        path: '/exploits',
+        element: (
+          <ProtectedRoute adminOnly>
+            <ExploitManager />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: '/admin',
         element: (
