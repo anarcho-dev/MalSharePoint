@@ -1,16 +1,63 @@
 {
-    "chat.tools.terminal.autoApprove": {
-        "/^grep -n \"<<<<<<\\\\\\|======\\\\\\|>>>>>>\" backend/app\\.py$/": {
-            "approve": true,
-            "matchCommandLine": true
-        },
-        "/^grep -n '<<<<\\\\\\|====\\\\\\|>>>>' backend/app\\.py frontend/src/pages/Listener\\.tsx$/": {
-            "approve": true,
-            "matchCommandLine": true
-        },
-        "/^git add backend/app\\.py frontend/src/pages/Listener\\.tsx && git -c core\\.editor=true rebase --continue$/": {
-            "approve": true,
-            "matchCommandLine": true
-        }
+  "chat.tools.terminal.autoApprove": {
+    "/^grep -n \"<<<<<<\\\\\\|======\\\\\\|>>>>>>\" backend/app\\.py$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^grep -n '<<<<\\\\\\|====\\\\\\|>>>>' backend/app\\.py frontend/src/pages/Listener\\.tsx$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^git add backend/app\\.py frontend/src/pages/Listener\\.tsx && git -c core\\.editor=true rebase --continue$/": {
+      "approve": true,
+      "matchCommandLine": true
     }
+  },
+  "launch": {
+    "compounds": [
+        {
+            "name": "Compound",
+            "configurations": []
+        }
+    ],
+    [PREFIX]
+    Task: Code Generation
+    Language: TM_LANG_ID
+    
+    [CONTEXT/EXISTING CODE (OPTIONAL)]
+    ```TM_LANG_ID
+    /* Optional: Markieren Sie existierenden Code für Kontext (z.B. eine Klasse oder Imports) */
+    ```
+    
+    [REQUEST]
+    Please generate the following code:
+    Beschreiben Sie die Funktionalität im Detail (z.B. 'Erstelle eine Python-Funktion, die eine URL entgegennimmt, das HTML herunterlädt und alle H2-Tags zurückgibt').
+    
+    [CONSTRAINTS]
+    Spezifizieren Sie Einschränkungen (z.B. 'ohne externe Bibliotheken', 'muss asynchron sein', 'umfangreich kommentieren')
+    
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Python: Flask Backend",
+        "type": "debugpy",
+        "request": "launch",
+        "module": "flask",
+        "env": {
+          "FLASK_APP": "backend/app.py",
+          "FLASK_DEBUG": "1",
+          "OLLAMA_HOST": "http://localhost:11434"
+        },
+        "args": ["run", "--no-debugger", "--no-reload"],
+        "jinja": true,
+        "smartStep": true
+      }
+    ]
+  },
+  "python.analysis.extraPaths": ["./backend"],
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit"
+  },
+  "debug.toolBarLocation": "docked"
 }

