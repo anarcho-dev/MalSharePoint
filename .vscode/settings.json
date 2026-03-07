@@ -14,6 +14,22 @@
     }
   },
   "launch": {
+  [PREFIX]
+  Task: Code Generation
+  Language: TM_LANG_ID
+  
+  [CONTEXT/EXISTING CODE (OPTIONAL)]
+  ```TM_LANG_ID
+  /* Optional: Markieren Sie existierenden Code für Kontext (z.B. eine Klasse oder Imports) */
+  ```
+  
+  [REQUEST]
+  Please generate the following code:
+  Beschreiben Sie die Funktionalität im Detail (z.B. 'Erstelle eine Python-Funktion, die eine URL entgegennimmt, das HTML herunterlädt und alle H2-Tags zurückgibt').
+  
+  [CONSTRAINTS]
+  Spezifizieren Sie Einschränkungen (z.B. 'ohne externe Bibliotheken', 'muss asynchron sein', 'umfangreich kommentieren')
+  
     "compounds": [
         {
             "name": "Compound",
