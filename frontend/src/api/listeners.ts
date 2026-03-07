@@ -17,7 +17,7 @@ export interface ListenerProfile {
 export interface ListenerItem {
   id: number;
   name: string;
-  listener_type: 'http' | 'https';
+  listener_type: 'http' | 'https' | 'ssh' | 'smb' | 'dns' | 'tcp' | 'icmp';
   bind_address: string;
   bind_port: number;
   status: 'stopped' | 'starting' | 'running' | 'error';
@@ -31,6 +31,7 @@ export interface ListenerItem {
   last_stopped_at: string | null;
   created_at: string;
   error_message: string | null;
+  extra_config: Record<string, string>;
   callback_count: number;
   agent_count: number;
   staged_count: number;
@@ -104,6 +105,8 @@ export const getListeners = () => api.get<ListenerItem[]>('/listeners');
 export const createListener = (data: {
   name: string; listener_type?: string; bind_address?: string;
   bind_port: number; profile_id?: number | null;
+  tls_cert_path?: string | null; tls_key_path?: string | null;
+  extra_config?: Record<string, string>;
 }) => api.post<ListenerItem>('/listeners', data);
 
 export const updateListener = (id: number, data: Partial<ListenerItem>) =>

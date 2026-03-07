@@ -21,6 +21,18 @@ from payload_templates import list_templates, get_template, render_template
 logger = logging.getLogger(__name__)
 listeners_bp = Blueprint('listeners', __name__, url_prefix='/api/listeners')
 
+VALID_LISTENER_TYPES = {'http', 'https', 'ssh', 'smb', 'dns', 'tcp', 'icmp'}
+
+# Protocol-specific config keys that may be stored in extra_config
+_PROTO_KEYS = {
+    'https': ('tls_cert_path', 'tls_key_path'),
+    'ssh': ('ssh_host_key_path', 'ssh_banner', 'ssh_auth_method'),
+    'dns': ('dns_domain', 'dns_record_type', 'dns_ttl', 'dns_upstream'),
+    'smb': ('smb_share_name', 'smb_pipe_name'),
+    'tcp': ('tcp_tls', 'tcp_banner'),
+    'icmp': (),
+}
+
 
 def _utcnow():
     return datetime.now(timezone.utc)
@@ -73,12 +85,21 @@ def create_listener():
         return jsonify({"error": "Valid bind_port (1-65535) required"}), 400
 
     listener_type = str(data.get('listener_type', 'http'))[:32]
+    if listener_type not in VALID_LISTENER_TYPES:
+        return jsonify({"error": f"listener_type must be one of: {', '.join(sorted(VALID_LISTENER_TYPES))}"}), 400
+
     tls_cert_path = data.get('tls_cert_path') or None
     tls_key_path = data.get('tls_key_path') or None
 
     if listener_type == 'https':
         if not tls_cert_path or not tls_key_path:
             return jsonify({"error": "HTTPS requires tls_cert_path and tls_key_path"}), 400
+
+    # Collect and sanitise extra protocol-specific config
+    raw_extra = data.get('extra_config') or {}
+    if not isinstance(raw_extra, dict):
+        raw_extra = {}
+    extra_config = json.dumps({str(k)[:64]: str(v)[:512] for k, v in raw_extra.items()})
 
     listener = Listener(
         name=name,
@@ -88,6 +109,7 @@ def create_listener():
         tls_cert_path=tls_cert_path,
         tls_key_path=tls_key_path,
         profile_id=data.get('profile_id'),
+        extra_config=extra_config,
         created_by=get_jwt_identity(),
         status='stopped',
     )
@@ -126,12 +148,21 @@ def update_listener(lid):
     for field in ('name', 'listener_type', 'bind_address', 'tls_cert_path', 'tls_key_path'):
         if field in data:
             setattr(listener, field, str(data[field])[:512] if data[field] else None)
+    if 'listener_type' in data:
+        lt = str(data['listener_type'])[:32]
+        if lt not in VALID_LISTENER_TYPES:
+            return jsonify({"error": f"listener_type must be one of: {', '.join(sorted(VALID_LISTENER_TYPES))}"}), 400
+        listener.listener_type = lt
     if 'bind_port' in data:
         port = data['bind_port']
         if isinstance(port, int) and 1 <= port <= 65535:
             listener.bind_port = port
     if 'profile_id' in data:
         listener.profile_id = data['profile_id']
+    if 'extra_config' in data:
+        raw_extra = data['extra_config'] or {}
+        if isinstance(raw_extra, dict):
+            listener.extra_config = json.dumps({str(k)[:64]: str(v)[:512] for k, v in raw_extra.items()})
 
     # Validate TLS paths for HTTPS after applying all field updates
     if listener.listener_type == 'https':

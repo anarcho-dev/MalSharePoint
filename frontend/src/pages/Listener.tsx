@@ -3,6 +3,7 @@ import {
   Radio, Copy, Check, RefreshCw, Wifi, Database, Play, Square, RotateCcw,
   Plus, Trash2, Globe, Terminal, Signal, X, AlertTriangle,
   ChevronDown, ChevronRight, Send, Zap, Cpu, FileCode, Eye, EyeOff, Download,
+  Key, Server, Network, Shield,
 } from 'lucide-react';
 import api from '../api/client';
 import {
@@ -31,6 +32,78 @@ const TABS: { key: Tab; label: string; Icon: React.ElementType }[] = [
   { key: 'legacy', label: 'Legacy Events', Icon: Database },
 ];
 
+/* ── Protocol metadata ─────────────────────────────────────────────────── */
+type ListenerType = 'http' | 'https' | 'ssh' | 'smb' | 'dns' | 'tcp' | 'icmp';
+
+const PROTOCOL_INFO: Record<ListenerType, {
+  label: string;
+  Icon: React.ElementType;
+  color: string;
+  description: string;
+  defaultPort: number;
+  extraFields: { key: string; label: string; placeholder: string; type?: string }[];
+}> = {
+  http: {
+    label: 'HTTP', Icon: Globe, color: 'text-sky-400',
+    description: 'HTTP/HTTPS Reverse-Shell- und Beacon-Listener. Unterstützt Profil-Verkleidung, gestufte Payloads und C2-Routing.',
+    defaultPort: 8080,
+    extraFields: [],
+  },
+  https: {
+    label: 'HTTPS', Icon: Shield, color: 'text-emerald-400',
+    description: 'Verschlüsselter HTTPS-Listener mit TLS-Zertifikat. Bietet die gleiche Funktionalität wie HTTP, aber mit TLS-Verschlüsselung.',
+    defaultPort: 443,
+    extraFields: [
+      { key: 'tls_cert_path', label: 'TLS Zertifikatspfad', placeholder: '/etc/ssl/certs/server.crt' },
+      { key: 'tls_key_path', label: 'TLS Schlüsselpfad', placeholder: '/etc/ssl/private/server.key' },
+    ],
+  },
+  ssh: {
+    label: 'SSH', Icon: Key, color: 'text-purple-400',
+    description: 'SSH-Reverse-Tunnel-Listener (paramiko). Agents verbinden sich per SSH; Befehle werden über den interaktiven Kanal übermittelt.',
+    defaultPort: 2222,
+    extraFields: [
+      { key: 'ssh_host_key_path', label: 'Host-Key Pfad (optional)', placeholder: '/etc/ssh/ssh_host_rsa_key' },
+      { key: 'ssh_banner', label: 'SSH Banner', placeholder: 'SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6' },
+      { key: 'ssh_auth_method', label: 'Authentifizierung', placeholder: 'any  (any | password | publickey)' },
+    ],
+  },
+  smb: {
+    label: 'SMB', Icon: Network, color: 'text-orange-400',
+    description: 'SMB Named-Pipe-Listener (Cobalt Strike-Stil). Ermöglicht laterale Bewegung innerhalb von Windows-Netzwerken ohne offene Ports.',
+    defaultPort: 445,
+    extraFields: [
+      { key: 'smb_pipe_name', label: 'Named Pipe Name', placeholder: 'msagent_01' },
+      { key: 'smb_share_name', label: 'Share Name (optional)', placeholder: 'IPC$' },
+    ],
+  },
+  dns: {
+    label: 'DNS', Icon: Wifi, color: 'text-teal-400',
+    description: 'DNS-Tunnel-Listener (dnslib). Beacons codieren Daten in DNS-Subdomains; Antworten kommen als TXT/A-Records zurück.',
+    defaultPort: 53,
+    extraFields: [
+      { key: 'dns_domain', label: 'C2-Domain', placeholder: 'c2.example.com' },
+      { key: 'dns_record_type', label: 'Record-Typ', placeholder: 'TXT  (TXT | A | CNAME)' },
+      { key: 'dns_ttl', label: 'TTL (Sekunden)', placeholder: '10', type: 'number' },
+    ],
+  },
+  tcp: {
+    label: 'TCP', Icon: Server, color: 'text-amber-400',
+    description: 'Raw-TCP-Listener mit JSON-Protokoll. Schlanker Agent kommuniziert über einen einfachen newline-delimited JSON-Stream.',
+    defaultPort: 4444,
+    extraFields: [
+      { key: 'tcp_banner', label: 'TCP Banner (optional)', placeholder: 'Welcome' },
+      { key: 'tcp_tls', label: 'TLS aktivieren', placeholder: 'false  (true | false)' },
+    ],
+  },
+  icmp: {
+    label: 'ICMP', Icon: Radio, color: 'text-rose-400',
+    description: 'ICMP-Tunnel-Listener (erfordert root / CAP_NET_RAW). Verbirgt C2-Traffic in ICMP Echo-Paketen.',
+    defaultPort: 0,
+    extraFields: [],
+  },
+};
+
 const STATUS_COLORS: Record<string, string> = {
   running: 'bg-emerald-400/15 text-emerald-400 border-emerald-400/30',
   stopped: 'bg-slate-600/20 text-slate-400 border-slate-500/30',
@@ -56,6 +129,135 @@ function CopyBtn({ text }: { text: string }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   Protocol Config Panel — shown below the type selector
+   ═══════════════════════════════════════════════════════════════════════ */
+
+type ExtraConfig = Record<string, string>;
+
+function ProtocolConfigPanel({ listenerType, tlsCert, tlsKey, extraConfig, onChange, onTlsChange }: {
+  listenerType: ListenerType;
+  tlsCert: string;
+  tlsKey: string;
+  extraConfig: ExtraConfig;
+  onChange: (key: string, value: string) => void;
+  onTlsChange: (cert: string, key: string) => void;
+}) {
+  const proto = PROTOCOL_INFO[listenerType];
+  if (!proto) return null;
+
+  return (
+    <div className="bg-slate-900/60 border border-slate-700/60 rounded-lg p-4 space-y-3">
+      <div className="flex items-start gap-3">
+        <proto.Icon size={18} className={proto.color + ' mt-0.5 shrink-0'} />
+        <div>
+          <p className="text-white text-sm font-medium">{proto.label}</p>
+          <p className="text-slate-500 text-xs mt-0.5">{proto.description}</p>
+        </div>
+      </div>
+      {listenerType === 'https' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">TLS Zertifikatspfad *</label>
+            <input className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 w-full" placeholder="/etc/ssl/certs/server.crt" value={tlsCert} onChange={e => onTlsChange(e.target.value, tlsKey)} />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">TLS Schlüsselpfad *</label>
+            <input className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 w-full" placeholder="/etc/ssl/private/server.key" value={tlsKey} onChange={e => onTlsChange(tlsCert, e.target.value)} />
+          </div>
+        </div>
+      )}
+      {proto.extraFields.length > 0 && listenerType !== 'https' && (
+        <div className={`grid grid-cols-1 ${proto.extraFields.length >= 2 ? 'md:grid-cols-2' : ''} gap-3 pt-1`}>
+          {proto.extraFields.map(f => (
+            <div key={f.key}>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">{f.label}</label>
+              <input
+                className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 w-full"
+                type={f.type ?? 'text'}
+                placeholder={f.placeholder}
+                value={extraConfig[f.key] ?? ''}
+                onChange={e => onChange(f.key, e.target.value)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+      {listenerType === 'icmp' && (
+        <div className="flex items-center gap-2 text-amber-400 text-xs">
+          <AlertTriangle size={13} />
+          <span>Benötigt root-Rechte (CAP_NET_RAW). Starte zuerst den Listener auf einem geeigneten Host.</span>
+        </div>
+      )}
+      {listenerType === 'smb' && (
+        <div className="flex items-center gap-2 text-amber-400 text-xs">
+          <AlertTriangle size={13} />
+          <span>SMB Named-Pipe erfordert einen Windows-Host oder eine laufende Samba-Instanz.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Profiles Sub-Panel
+   ═══════════════════════════════════════════════════════════════════════ */
+
+function ProfilesPanel({ profiles, onRefresh }: { profiles: ListenerProfile[]; onRefresh: () => void }) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ name: '', description: '', server_header: 'Apache/2.4.54 (Ubuntu)', default_content_type: 'text/html' });
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    try {
+      await createProfile(form);
+      setShowCreate(false);
+      setForm({ name: '', description: '', server_header: 'Apache/2.4.54 (Ubuntu)', default_content_type: 'text/html' });
+      onRefresh();
+    } catch (e: any) { setError(e.response?.data?.error || 'Fehler'); }
+  };
+
+  return (
+    <div className="border border-slate-700 rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 bg-slate-800/40 border-b border-slate-700">
+        <h3 className="text-white font-semibold text-sm flex items-center gap-2"><Shield size={14} className="text-indigo-400" /> Listener-Profile ({profiles.length})</h3>
+        <button onClick={() => setShowCreate(!showCreate)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs"><Plus size={12} /> Profil</button>
+      </div>
+      {error && <div className="text-rose-400 text-xs bg-rose-400/10 px-4 py-2">{error} <button onClick={() => setError(null)} className="ml-1 text-slate-400"><X size={10} /></button></div>}
+      {showCreate && (
+        <div className="px-4 py-3 border-b border-slate-700 bg-slate-900/30 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <input className="bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-white placeholder-slate-500" placeholder="Profilname" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+            <input className="bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-white placeholder-slate-500" placeholder="Server-Header (z.B. Apache/2.4)" value={form.server_header} onChange={e => setForm({ ...form, server_header: e.target.value })} />
+          </div>
+          <input className="bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-white placeholder-slate-500 w-full" placeholder="Beschreibung" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setShowCreate(false)} className="px-2 py-1 rounded bg-slate-700 text-slate-300 text-xs">Abbrechen</button>
+            <button onClick={handleCreate} className="px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium">Erstellen</button>
+          </div>
+        </div>
+      )}
+      {profiles.length === 0
+        ? <div className="px-4 py-4 text-center text-slate-500 text-xs">Keine Profile vorhanden.</div>
+        : (
+          <div className="divide-y divide-slate-700/50">
+            {profiles.map(p => (
+              <div key={p.id} className="flex items-center justify-between px-4 py-2 hover:bg-slate-700/20">
+                <div>
+                  <span className="text-white text-xs font-medium">{p.name}</span>
+                  <span className="text-slate-500 text-xs ml-2">· {p.server_header}</span>
+                  {p.description && <span className="text-slate-600 text-xs ml-2">· {p.description}</span>}
+                </div>
+                <button onClick={() => { if (confirm(`Profil "${p.name}" löschen?`)) deleteProfile(p.id).then(onRefresh); }} className="p-1 rounded hover:bg-rose-500/20 text-rose-400"><Trash2 size={12} /></button>
+              </div>
+            ))}
+          </div>
+        )
+      }
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    Listeners Tab
    ═══════════════════════════════════════════════════════════════════════ */
 
@@ -64,7 +266,12 @@ function ListenersTab() {
   const [profiles, setProfiles] = useState<ListenerProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: '', bind_port: 8080, listener_type: 'http', bind_address: '0.0.0.0', profile_id: null as number | null });
+  const [form, setForm] = useState<{
+    name: string; bind_port: number; listener_type: ListenerType;
+    bind_address: string; profile_id: number | null;
+    tls_cert_path: string; tls_key_path: string;
+    extra_config: ExtraConfig;
+  }>({ name: '', bind_port: 8080, listener_type: 'http', bind_address: '0.0.0.0', profile_id: null, tls_cert_path: '', tls_key_path: '', extra_config: {} });
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -76,10 +283,29 @@ function ListenersTab() {
 
   useEffect(() => { refresh(); const i = setInterval(refresh, 8000); return () => clearInterval(i); }, [refresh]);
 
+  const handleTypeChange = (t: ListenerType) => {
+    const info = PROTOCOL_INFO[t];
+    setForm(prev => ({ ...prev, listener_type: t, bind_port: info?.defaultPort || prev.bind_port, extra_config: {} }));
+  };
+
   const handleCreate = async () => {
     try {
-      await createListener({ ...form, profile_id: form.profile_id || undefined });
-      setShowCreate(false); setForm({ name: '', bind_port: 8080, listener_type: 'http', bind_address: '0.0.0.0', profile_id: null }); refresh();
+      const payload: Parameters<typeof createListener>[0] = {
+        name: form.name,
+        listener_type: form.listener_type,
+        bind_address: form.bind_address,
+        bind_port: form.bind_port,
+        profile_id: form.profile_id || undefined,
+        extra_config: Object.fromEntries(Object.entries(form.extra_config).filter(([, v]) => v.trim() !== '')),
+      };
+      if (form.listener_type === 'https') {
+        payload.tls_cert_path = form.tls_cert_path || null;
+        payload.tls_key_path = form.tls_key_path || null;
+      }
+      await createListener(payload);
+      setShowCreate(false);
+      setForm({ name: '', bind_port: 8080, listener_type: 'http', bind_address: '0.0.0.0', profile_id: null, tls_cert_path: '', tls_key_path: '', extra_config: {} });
+      refresh();
     } catch (e: any) { setError(e.response?.data?.error || 'Erstellen fehlgeschlagen'); }
   };
 
@@ -96,20 +322,48 @@ function ListenersTab() {
       {error && <div className="text-rose-400 text-sm bg-rose-400/10 border border-rose-400/20 rounded-lg px-4 py-2">{error} <button onClick={() => setError(null)} className="ml-2 text-slate-400 hover:text-white"><X size={12} /></button></div>}
 
       {showCreate && (
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-3">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-4">
           <h3 className="text-white font-semibold text-sm">Neuen Listener erstellen</h3>
+
+          {/* Protocol type selector */}
+          <div className="space-y-2">
+            <label className="text-[10px] text-slate-500 uppercase tracking-wider block">Protokoll</label>
+            <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
+              {(Object.keys(PROTOCOL_INFO) as ListenerType[]).map(t => {
+                const info = PROTOCOL_INFO[t];
+                const Icon = info.Icon;
+                const active = form.listener_type === t;
+                return (
+                  <button key={t} onClick={() => handleTypeChange(t)} className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg border text-xs font-medium transition-all ${active ? 'border-indigo-500 bg-indigo-600/15 text-white' : 'border-slate-700 bg-slate-900/50 text-slate-400 hover:border-slate-600 hover:text-slate-200'}`}>
+                    <Icon size={16} className={active ? info.color : ''} />
+                    {info.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Base config fields */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" placeholder="Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
             <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" type="number" placeholder="Port" value={form.bind_port} onChange={e => setForm({ ...form, bind_port: parseInt(e.target.value) || 0 })} />
-            <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={form.listener_type} onChange={e => setForm({ ...form, listener_type: e.target.value })}>
-              <option value="http">HTTP</option><option value="https">HTTPS</option>
-            </select>
+            <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" placeholder="Bind Address (0.0.0.0)" value={form.bind_address} onChange={e => setForm({ ...form, bind_address: e.target.value })} />
             <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={form.profile_id ?? ''} onChange={e => setForm({ ...form, profile_id: e.target.value ? parseInt(e.target.value) : null })}>
               <option value="">Kein Profil</option>
               {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
-          <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 w-full" placeholder="Bind Address (0.0.0.0)" value={form.bind_address} onChange={e => setForm({ ...form, bind_address: e.target.value })} />
+
+          {/* Protocol-specific configuration panel */}
+          <ProtocolConfigPanel
+            listenerType={form.listener_type}
+            tlsCert={form.tls_cert_path}
+            tlsKey={form.tls_key_path}
+            extraConfig={form.extra_config}
+            onChange={(key, value) => setForm(prev => ({ ...prev, extra_config: { ...prev.extra_config, [key]: value } }))}
+            onTlsChange={(cert, key) => setForm(prev => ({ ...prev, tls_cert_path: cert, tls_key_path: key }))}
+          />
+
           <div className="flex justify-end gap-2">
             <button onClick={() => setShowCreate(false)} className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm">Abbrechen</button>
             <button onClick={handleCreate} className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium">Erstellen</button>
@@ -121,6 +375,9 @@ function ListenersTab() {
       <div className="space-y-3">
         {listeners.map(lsn => <ListenerCard key={lsn.id} listener={lsn} onRefresh={refresh} profiles={profiles} />)}
       </div>
+
+      {/* Profiles sub-panel */}
+      <ProfilesPanel profiles={profiles} onRefresh={refresh} />
     </div>
   );
 }
@@ -130,17 +387,20 @@ function ListenerCard({ listener: lsn, onRefresh, profiles }: { listener: Listen
   const [busy, setBusy] = useState(false);
   const action = async (fn: () => Promise<any>) => { setBusy(true); try { await fn(); onRefresh(); } catch (e: any) { alert(e.response?.data?.error || 'Fehler'); } finally { setBusy(false); } };
   const prof = profiles.find(p => p.id === lsn.profile_id);
+  const protoInfo = PROTOCOL_INFO[lsn.listener_type as ListenerType];
+  const ProtoIcon = protoInfo?.Icon ?? Globe;
+  const protoColor = protoInfo?.color ?? 'text-slate-400';
 
   return (
     <div className="bg-slate-800/60 border border-slate-700 rounded-xl overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setExpanded(!expanded)}>
           {expanded ? <ChevronDown size={14} className="text-slate-500" /> : <ChevronRight size={14} className="text-slate-500" />}
-          <Globe size={16} className="text-indigo-400" />
+          <ProtoIcon size={16} className={protoColor} />
           <span className="text-white font-medium text-sm">{lsn.name}</span>
           <StatusBadge status={lsn.status} />
           <span className="text-slate-500 text-xs font-mono">{lsn.bind_address}:{lsn.bind_port}</span>
-          <span className="text-slate-600 text-xs">{lsn.listener_type.toUpperCase()}</span>
+          <span className={`text-xs font-medium ${protoColor}`}>{lsn.listener_type.toUpperCase()}</span>
           {prof && <span className="text-slate-600 text-xs">· {prof.name}</span>}
         </div>
         <div className="flex items-center gap-1.5">
@@ -153,12 +413,28 @@ function ListenerCard({ listener: lsn, onRefresh, profiles }: { listener: Listen
         </div>
       </div>
       {expanded && (
-        <div className="border-t border-slate-700 px-5 py-3 text-xs text-slate-400 space-y-1">
-          {lsn.error_message && <p className="text-rose-400"><AlertTriangle size={12} className="inline mr-1" />{lsn.error_message}</p>}
-          <p>Erstellt: {new Date(lsn.created_at).toLocaleString()}</p>
-          {lsn.last_started_at && <p>Zuletzt gestartet: {new Date(lsn.last_started_at).toLocaleString()}</p>}
-          {lsn.last_stopped_at && <p>Zuletzt gestoppt: {new Date(lsn.last_stopped_at).toLocaleString()}</p>}
-          {lsn.runtime?.running && <p className="text-emerald-400">Thread aktiv: {lsn.runtime.thread_name}</p>}
+        <div className="border-t border-slate-700 px-5 py-4 space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs text-slate-400">
+            <div><span className="text-slate-500">Erstellt:</span> {new Date(lsn.created_at).toLocaleString()}</div>
+            {lsn.last_started_at && <div><span className="text-slate-500">Zuletzt gestartet:</span> {new Date(lsn.last_started_at).toLocaleString()}</div>}
+            {lsn.last_stopped_at && <div><span className="text-slate-500">Zuletzt gestoppt:</span> {new Date(lsn.last_stopped_at).toLocaleString()}</div>}
+            {lsn.runtime?.running && <div className="text-emerald-400">Thread aktiv: {lsn.runtime.thread_name}</div>}
+          </div>
+          {lsn.error_message && <p className="text-rose-400 text-xs"><AlertTriangle size={12} className="inline mr-1" />{lsn.error_message}</p>}
+          {/* Protocol-specific extra config display */}
+          {lsn.extra_config && Object.keys(lsn.extra_config).length > 0 && (
+            <div className="bg-slate-900/50 border border-slate-700/60 rounded-lg p-3">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Protokoll-Konfiguration ({lsn.listener_type.toUpperCase()})</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {Object.entries(lsn.extra_config).map(([k, v]) => (
+                  <div key={k} className="text-xs">
+                    <span className="text-slate-500">{k}:</span>{' '}
+                    <span className="text-slate-300 font-mono break-all">{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

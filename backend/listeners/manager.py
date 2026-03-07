@@ -1,9 +1,17 @@
 """
-ListenerManager — singleton that manages threaded HTTP/HTTPS listener processes.
+ListenerManager — singleton that manages threaded listener processes.
 
-Each listener runs as a threading.Thread hosting a lightweight WSGI app via
-werkzeug.serving.make_server.  The manager handles start / stop / restart
-lifecycle, port-conflict detection, auto-start on boot, and graceful shutdown.
+Supported listener types:
+  http  / https  — werkzeug WSGI-based HTTP(S) listeners (existing)
+  ssh            — paramiko SSH server (ssh_listener.py)
+  dns            — dnslib UDP DNS server (dns_listener.py)
+  tcp            — raw TCP socket server (tcp_listener.py)
+  smb            — Named-pipe server (SMB; stub — not yet implemented)
+  icmp           — ICMP tunnel (stub — requires root, not yet implemented)
+
+Each listener runs as a threading.Thread.  The manager handles start / stop /
+restart lifecycle, port-conflict detection, auto-start on boot, and graceful
+shutdown.
 """
 
 import json
@@ -43,7 +51,7 @@ class ListenerManager:
     """Singleton managing the lifecycle of all listener threads."""
 
     def __init__(self, app=None):
-        self._threads: dict[int, _ListenerThread] = {}
+        self._threads: dict[int, threading.Thread] = {}
         self._lock = threading.Lock()
         self._app = app
 
@@ -87,6 +95,7 @@ class ListenerManager:
 
             host = listener.bind_address
             port = listener.bind_port
+            ltype = listener.listener_type
 
             # Prevent binding to the main Flask port
             main_port = self._app.config.get('MAIN_PORT', 5005)
@@ -96,47 +105,22 @@ class ListenerManager:
                 db.session.commit()
                 return {"ok": False, "error": listener.error_message}
 
-            # Check port availability
-            if not self._port_available(host, port):
+            # DNS uses UDP — skip TCP port-availability check for DNS
+            if ltype != 'dns' and not self._port_available(host, port):
                 listener.status = 'error'
                 listener.error_message = f"Port {port} is already in use"
                 db.session.commit()
                 return {"ok": False, "error": listener.error_message}
 
-            # Build WSGI app
+            # Dispatch to the correct listener implementation
             try:
-                wsgi_app = self._build_wsgi_app(listener)
+                thread = self._start_by_type(listener, ltype)
             except Exception as exc:
                 listener.status = 'error'
                 listener.error_message = str(exc)
                 db.session.commit()
-                logger.exception("Failed to build WSGI app for listener %s", listener_id)
+                logger.exception("Failed to start listener %s (type=%s)", listener_id, ltype)
                 return {"ok": False, "error": str(exc)}
-
-            # Create server
-            try:
-                srv = make_server(host, port, wsgi_app, threaded=True)
-
-                # TLS
-                if listener.listener_type == 'https':
-                    if not listener.tls_cert_path or not listener.tls_key_path:
-                        listener.status = 'error'
-                        listener.error_message = "HTTPS requires tls_cert_path and tls_key_path"
-                        db.session.commit()
-                        return {"ok": False, "error": listener.error_message}
-                    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-                    ctx.load_cert_chain(listener.tls_cert_path, listener.tls_key_path)
-                    srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
-
-            except Exception as exc:
-                listener.status = 'error'
-                listener.error_message = str(exc)
-                db.session.commit()
-                logger.exception("Failed to create server for listener %s", listener_id)
-                return {"ok": False, "error": str(exc)}
-
-            thread = _ListenerThread(srv, listener_id)
-            thread.start()
 
             with self._lock:
                 self._threads[listener_id] = thread
@@ -147,8 +131,52 @@ class ListenerManager:
             listener.last_started_at = _utcnow()
             db.session.commit()
 
-            logger.info("Listener %s started on %s:%s", listener_id, host, port)
+            logger.info("Listener %s (%s) started on %s:%s", listener_id, ltype, host, port)
             return {"ok": True, "message": f"Listener started on {host}:{port}"}
+
+    def _start_by_type(self, listener, ltype: str):
+        """Instantiate and start the thread for the given protocol type."""
+        if ltype in ('http', 'https'):
+            return self._start_http_listener(listener)
+        if ltype == 'ssh':
+            from listeners.ssh_listener import start_ssh_listener
+            return start_ssh_listener(listener, self._app)
+        if ltype == 'dns':
+            from listeners.dns_listener import start_dns_listener
+            return start_dns_listener(listener, self._app)
+        if ltype == 'tcp':
+            from listeners.tcp_listener import start_tcp_listener
+            return start_tcp_listener(listener, self._app)
+        if ltype == 'smb':
+            raise NotImplementedError(
+                "SMB (named-pipe) listener requires a Windows host or Samba daemon — "
+                "not available in this environment."
+            )
+        if ltype == 'icmp':
+            raise NotImplementedError(
+                "ICMP listener requires raw socket access (root / CAP_NET_RAW) — "
+                "start this listener on a host with the necessary privileges."
+            )
+        raise ValueError(f"Unknown listener type: {ltype!r}")
+
+    def _start_http_listener(self, listener):
+        """Start a werkzeug-based HTTP/HTTPS listener thread."""
+        host = listener.bind_address
+        port = listener.bind_port
+
+        wsgi_app = self._build_wsgi_app(listener)
+        srv = make_server(host, port, wsgi_app, threaded=True)
+
+        if listener.listener_type == 'https':
+            if not listener.tls_cert_path or not listener.tls_key_path:
+                raise ValueError("HTTPS requires tls_cert_path and tls_key_path")
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.load_cert_chain(listener.tls_cert_path, listener.tls_key_path)
+            srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
+
+        thread = _ListenerThread(srv, listener.id)
+        thread.start()
+        return thread
 
     def stop_listener(self, listener_id: int) -> dict:
         """Stop a running listener."""

@@ -196,7 +196,7 @@ class Listener(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(128), unique=True, nullable=False)
-    listener_type = db.Column(db.String(32), nullable=False, default='http')  # http | https
+    listener_type = db.Column(db.String(32), nullable=False, default='http')  # http|https|ssh|smb|dns|tcp|icmp
     bind_address = db.Column(db.String(45), nullable=False, default='0.0.0.0')
     bind_port = db.Column(db.Integer, nullable=False)
     status = db.Column(db.String(20), nullable=False, default='stopped')  # stopped|starting|running|error
@@ -209,12 +209,18 @@ class Listener(db.Model):
     last_stopped_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
     error_message = db.Column(db.Text, nullable=True)
+    extra_config = db.Column(db.Text, default='{}')  # JSON — protocol-specific settings
 
     callbacks = db.relationship('Callback', backref='listener', lazy='dynamic')
     staged_payloads = db.relationship('StagedPayload', backref='listener', lazy='dynamic')
     agents = db.relationship('Agent', backref='listener', lazy='dynamic')
 
     def to_dict(self):
+        import json as _json
+        try:
+            extra = _json.loads(self.extra_config) if self.extra_config else {}
+        except (ValueError, TypeError):
+            extra = {}
         return {
             'id': self.id,
             'name': self.name,
@@ -232,6 +238,7 @@ class Listener(db.Model):
             'last_stopped_at': self.last_stopped_at.isoformat() if self.last_stopped_at else None,
             'created_at': self.created_at.isoformat(),
             'error_message': self.error_message,
+            'extra_config': extra,
             'callback_count': self.callbacks.count(),
             'agent_count': self.agents.count(),
             'staged_count': self.staged_payloads.filter_by(is_active=True).count(),
