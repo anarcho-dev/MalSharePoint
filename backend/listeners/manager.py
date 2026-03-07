@@ -104,32 +104,15 @@ class ListenerManager:
         return _ListenerThread(srv, listener.id)
 
     def _start_ssh_listener(self, listener):
-        """Conceptual SSH Listener."""
+        """SSH Listener using paramiko."""
+        import json
 
-        # In a real implementation, we would use paramiko or similar
-        # For now, we simulate the thread
-        class SSHServerThread(threading.Thread):
-            def __init__(self, l_id, h, p):
-                super().__init__(daemon=True, name=f"ssh-listener-{l_id}")
-                self.l_id = l_id
-                self.h = h
-                self.p = p
-                self.active = True
+        options = json.loads(listener.options) if listener.options else {}
+        from listeners.ssh_listener import SSHListenerThread
 
-            def run(self):
-                logger.info(
-                    "SSH Listener %s started on %s:%s (Simulation)",
-                    self.l_id,
-                    self.h,
-                    self.p,
-                )
-                while self.active:
-                    threading.Event().wait(1.0)
-
-            def shutdown(self):
-                self.active = False
-
-        return SSHServerThread(listener.id, listener.bind_address, listener.bind_port)
+        return SSHListenerThread(
+            listener.id, listener.bind_address, listener.bind_port, options, self._app
+        )
 
     def _start_dns_listener(self, listener):
         """Conceptual DNS Listener."""

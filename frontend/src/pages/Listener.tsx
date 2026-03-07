@@ -190,14 +190,6 @@ function ListenersTab() {
   );
 }
 
-      {listeners.length === 0 && !loading && <div className="text-center py-12 text-slate-500">Keine Listener konfiguriert.</div>}
-      <div className="space-y-3">
-        {listeners.map(lsn => <ListenerCard key={lsn.id} listener={lsn} onRefresh={refresh} profiles={profiles} />)}
-      </div>
-    </div>
-  );
-}
-
 function ListenerCard({ listener: lsn, onRefresh, profiles }: { listener: ListenerItem; onRefresh: () => void; profiles: ListenerProfile[] }) {
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
