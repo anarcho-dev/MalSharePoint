@@ -424,7 +424,7 @@ function ListenerCard({ listener: lsn, onRefresh, profiles }: { listener: Listen
           {/* Protocol-specific extra config display */}
           {lsn.extra_config && Object.keys(lsn.extra_config).length > 0 && (
             <div className="bg-slate-900/50 border border-slate-700/60 rounded-lg p-3">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Protokoll-Konfiguration ({lsn.listener_type.toUpperCase()})</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Protokollspezifische Einstellungen</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {Object.entries(lsn.extra_config).map(([k, v]) => (
                   <div key={k} className="text-xs">

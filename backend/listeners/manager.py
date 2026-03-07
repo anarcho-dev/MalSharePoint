@@ -171,6 +171,7 @@ class ListenerManager:
             if not listener.tls_cert_path or not listener.tls_key_path:
                 raise ValueError("HTTPS requires tls_cert_path and tls_key_path")
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.minimum_version = ssl.TLSVersion.TLSv1_2
             ctx.load_cert_chain(listener.tls_cert_path, listener.tls_key_path)
             srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
 

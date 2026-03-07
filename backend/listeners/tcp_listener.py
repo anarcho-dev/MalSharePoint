@@ -288,6 +288,7 @@ def start_tcp_listener(listener_row, flask_app) -> "TCPListenerThread":
         key = listener_row.tls_key_path
         if cert and key:
             tls_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            tls_ctx.minimum_version = ssl.TLSVersion.TLSv1_2
             tls_ctx.load_cert_chain(cert, key)
         else:
             logger.warning("TCP/TLS requested but no cert/key paths set for listener %s", listener_row.id)
