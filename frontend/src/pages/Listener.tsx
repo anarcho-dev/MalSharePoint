@@ -64,7 +64,14 @@ function ListenersTab() {
   const [profiles, setProfiles] = useState<ListenerProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: '', bind_port: 8080, listener_type: 'http', bind_address: '0.0.0.0', profile_id: null as number | null });
+  const [form, setForm] = useState({ 
+    name: '', 
+    bind_port: 8080, 
+    listener_type: 'http', 
+    bind_address: '0.0.0.0', 
+    profile_id: null as number | null,
+    options: {} as Record<string, any>
+  });
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -79,7 +86,7 @@ function ListenersTab() {
   const handleCreate = async () => {
     try {
       await createListener({ ...form, profile_id: form.profile_id || undefined });
-      setShowCreate(false); setForm({ name: '', bind_port: 8080, listener_type: 'http', bind_address: '0.0.0.0', profile_id: null }); refresh();
+      setShowCreate(false); setForm({ name: '', bind_port: 8080, listener_type: 'http', bind_address: '0.0.0.0', profile_id: null, options: {} }); refresh();
     } catch (e: any) { setError(e.response?.data?.error || 'Erstellen fehlgeschlagen'); }
   };
 
@@ -96,26 +103,92 @@ function ListenersTab() {
       {error && <div className="text-rose-400 text-sm bg-rose-400/10 border border-rose-400/20 rounded-lg px-4 py-2">{error} <button onClick={() => setError(null)} className="ml-2 text-slate-400 hover:text-white"><X size={12} /></button></div>}
 
       {showCreate && (
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-3">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-4">
           <h3 className="text-white font-semibold text-sm">Neuen Listener erstellen</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" placeholder="Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-            <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" type="number" placeholder="Port" value={form.bind_port} onChange={e => setForm({ ...form, bind_port: parseInt(e.target.value) || 0 })} />
-            <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={form.listener_type} onChange={e => setForm({ ...form, listener_type: e.target.value })}>
-              <option value="http">HTTP</option><option value="https">HTTPS</option>
-            </select>
-            <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={form.profile_id ?? ''} onChange={e => setForm({ ...form, profile_id: e.target.value ? parseInt(e.target.value) : null })}>
-              <option value="">Kein Profil</option>
-              {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500 uppercase font-bold ml-1">Name</label>
+              <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 w-full" placeholder="Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500 uppercase font-bold ml-1">Port</label>
+              <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 w-full" type="number" placeholder="Port" value={form.bind_port} onChange={e => setForm({ ...form, bind_port: parseInt(e.target.value) || 0 })} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500 uppercase font-bold ml-1">Typ</label>
+              <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white w-full" value={form.listener_type} onChange={e => setForm({ ...form, listener_type: e.target.value, options: {} })}>
+                <option value="http">HTTP</option>
+                <option value="https">HTTPS</option>
+                <option value="ssh">SSH</option>
+                <option value="smb">SMB</option>
+                <option value="dns">DNS</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500 uppercase font-bold ml-1">Profil</label>
+              <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white w-full" value={form.profile_id ?? ''} onChange={e => setForm({ ...form, profile_id: e.target.value ? parseInt(e.target.value) : null })}>
+                <option value="">Kein Profil</option>
+                {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
           </div>
-          <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 w-full" placeholder="Bind Address (0.0.0.0)" value={form.bind_address} onChange={e => setForm({ ...form, bind_address: e.target.value })} />
+          
+          <div className="space-y-1">
+            <label className="text-[10px] text-slate-500 uppercase font-bold ml-1">Bind Address</label>
+            <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 w-full" placeholder="Bind Address (0.0.0.0)" value={form.bind_address} onChange={e => setForm({ ...form, bind_address: e.target.value })} />
+          </div>
+
+          {/* Dynamic Configuration Panel based on Listener Type */}
+          <div className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-4 space-y-3">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">{form.listener_type.toUpperCase()} Konfiguration</h4>
+            
+            {form.listener_type === 'ssh' && (
+              <div className="grid grid-cols-2 gap-3">
+                <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" placeholder="SSH Banner" value={form.options.banner || ''} onChange={e => setForm({ ...form, options: { ...form.options, banner: e.target.value } })} />
+                <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" placeholder="Private Key Path" value={form.options.key_path || ''} onChange={e => setForm({ ...form, options: { ...form.options, key_path: e.target.value } })} />
+              </div>
+            )}
+
+            {form.listener_type === 'dns' && (
+              <div className="grid grid-cols-2 gap-3">
+                <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" placeholder="Zone (z.B. c2.example.com)" value={form.options.zone || ''} onChange={e => setForm({ ...form, options: { ...form.options, zone: e.target.value } })} />
+                <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" type="number" placeholder="TTL" value={form.options.ttl || 60} onChange={e => setForm({ ...form, options: { ...form.options, ttl: parseInt(e.target.value) } })} />
+              </div>
+            )}
+
+            {form.listener_type === 'smb' && (
+              <div className="grid grid-cols-2 gap-3">
+                <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" placeholder="Pipe Name" value={form.options.pipe_name || 'c2_pipe'} onChange={e => setForm({ ...form, options: { ...form.options, pipe_name: e.target.value } })} />
+                <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" placeholder="Share Name" value={form.options.share_name || ''} onChange={e => setForm({ ...form, options: { ...form.options, share_name: e.target.value } })} />
+              </div>
+            )}
+
+            {(form.listener_type === 'http' || form.listener_type === 'https') && (
+              <div className="text-xs text-slate-500 italic">Verwendet das ausgewählte Profil für erweiterte HTTP-Einstellungen.</div>
+            )}
+            
+            {form.listener_type === 'https' && (
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" placeholder="Cert Path" value={form.options.tls_cert_path || ''} onChange={e => setForm({ ...form, options: { ...form.options, tls_cert_path: e.target.value } })} />
+                <input className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" placeholder="Key Path" value={form.options.tls_key_path || ''} onChange={e => setForm({ ...form, options: { ...form.options, tls_key_path: e.target.value } })} />
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end gap-2">
             <button onClick={() => setShowCreate(false)} className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm">Abbrechen</button>
             <button onClick={handleCreate} className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium">Erstellen</button>
           </div>
         </div>
       )}
+
+      {listeners.length === 0 && !loading && <div className="text-center py-12 text-slate-500">Keine Listener konfiguriert.</div>}
+      <div className="space-y-3">
+        {listeners.map(lsn => <ListenerCard key={lsn.id} listener={lsn} onRefresh={refresh} profiles={profiles} />)}
+      </div>
+    </div>
+  );
+}
 
       {listeners.length === 0 && !loading && <div className="text-center py-12 text-slate-500">Keine Listener konfiguriert.</div>}
       <div className="space-y-3">

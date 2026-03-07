@@ -17,7 +17,7 @@ export interface ListenerProfile {
 export interface ListenerItem {
   id: number;
   name: string;
-  listener_type: 'http' | 'https';
+  listener_type: string;
   bind_address: string;
   bind_port: number;
   status: 'stopped' | 'starting' | 'running' | 'error';
@@ -31,6 +31,7 @@ export interface ListenerItem {
   last_stopped_at: string | null;
   created_at: string;
   error_message: string | null;
+  options: Record<string, any>;
   callback_count: number;
   agent_count: number;
   staged_count: number;
